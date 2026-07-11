@@ -61,4 +61,4 @@ plugin/build/outputs/apk/debug/plugin-debug.apk.lnrp
 
 此插件由第三方維護，與 Linovelib 網站沒有隸屬關係。請遵守網站條款及所在地法規。
 
-程式碼依照 [GPL-3.0](LICENSE) 授權發布。
+程式碼依照 [Apache License 2.0](LICENSE) 授權發布。
