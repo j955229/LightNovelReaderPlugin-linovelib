@@ -13,7 +13,7 @@
 
 ## 安裝
 
-1. 從 GitHub Actions 的建置產物取得 `plugin-debug.apk.lnrp`，或在電腦自行建置。
+1. 從 [Releases](https://github.com/j955229/LightNovelReaderPlugin-linovelib/releases) 下載 `.lnrp`，也可使用 GitHub Actions 的建置產物或在電腦自行建置。
 2. 開啟 LightNovelReader 的「設定」→「擴充外掛」。
 3. 選擇「安裝外掛」，匯入 `.lnrp` 檔案。
 4. 安裝後啟用 `Linovelib TW`。
