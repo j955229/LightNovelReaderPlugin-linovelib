@@ -305,6 +305,7 @@ class LinovelibHtmlParser(
             ?.ifBlank { image.attr("src") }
             ?.let(::normalizeUrl)
             .orEmpty()
+            .ifBlank { LinovelibUrls.cover(id) }
 
         return ParsedExploreBook(id, title, author, coverUrl).also { exploreBookCache[id] = it }
     }

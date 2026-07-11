@@ -16,5 +16,11 @@
             </intent-filter>
         </receiver>
 
+        <provider
+            android:name=".LinovelibImageProvider"
+            android:authorities="io.nightfish.lightnovelreader.plugin.linovelib.images"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
     </application>
 </manifest>

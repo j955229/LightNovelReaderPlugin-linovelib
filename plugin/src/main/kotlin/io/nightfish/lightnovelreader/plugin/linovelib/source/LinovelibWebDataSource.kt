@@ -1,5 +1,6 @@
 package io.nightfish.lightnovelreader.plugin.linovelib.source
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import io.nightfish.lightnovelreader.api.book.BookInformation
@@ -37,14 +38,23 @@ import kotlin.time.Duration.Companion.seconds
     name = "Linovelib TW",
     provider = "tw.linovelib.com"
 )
-class LinovelibWebDataSource : WebBookDataSource {
+class LinovelibWebDataSource(
+    private val context: Context
+) : WebBookDataSource {
     private val parser = LinovelibHtmlParser(LinovelibChineseConverter::toTraditional)
     private val diagnostics = LinovelibDiagnostics()
     private val scope = CoroutineScope(Dispatchers.IO)
     private val offlineStateFlow = MutableStateFlow(true)
+    private val requestLock = Any()
+    private val sessionCookies = mutableMapOf<String, String>()
+    private var lastRequestStartedAtMillis = 0L
+    private var blockedUntilMillis = 0L
+    private val imageProxyAvailable by lazy {
+        context.packageManager.resolveContentProvider(LinovelibImageProxy.authority, 0) != null
+    }
 
-    override val permits: Int = 3
-    override val cache: Cache? = null
+    override val permits: Int = 1
+    override val cache: Cache = Cache(maxCountEachType = 64, timeout = 300_000)
     override val id: Int = "linovelib_tw".hashCode()
     override val offLine: Boolean get() = offlineStateFlow.value
     override val isOffLineFlow: StateFlow<Boolean> = offlineStateFlow
@@ -72,11 +82,12 @@ class LinovelibWebDataSource : WebBookDataSource {
 
     override suspend fun isOffLine(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            Jsoup.connect(LinovelibUrls.HOST)
-                .userAgent(USER_AGENT)
-                .timeout(15_000)
-                .execute()
-                .statusCode() !in 200..399
+            executeRequest(
+                url = LinovelibUrls.HOST,
+                userAgent = USER_AGENT,
+                referrer = LinovelibUrls.HOST,
+                acceptLanguage = "zh-TW,zh;q=0.9,en;q=0.7"
+            ).statusCode() !in 200..399
         }.getOrElse { true }
     }
 
@@ -142,7 +153,8 @@ class LinovelibWebDataSource : WebBookDataSource {
             userAgent = CONTENT_USER_AGENT,
             referrer = "${LinovelibUrls.CONTENT_HOST}/",
             acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
-            cacheControl = true
+            cacheControl = true,
+            includeSessionCookies = false
         )
         val jsToken = LinovelibSearchGuard.extractCookieValue(guardJs.body(), "jieqiSearchJs")
         require(jsToken.isNotEmpty()) { "Missing jieqiSearchJs search guard cookie" }
@@ -152,7 +164,8 @@ class LinovelibWebDataSource : WebBookDataSource {
             userAgent = CONTENT_USER_AGENT,
             referrer = "${LinovelibUrls.CONTENT_HOST}/",
             acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
-            cacheControl = true
+            cacheControl = true,
+            includeSessionCookies = false
         )
         val cssToken = guardCss.cookies()["jieqiSearchCss"].orEmpty()
         require(cssToken.isNotEmpty()) { "Missing jieqiSearchCss search guard cookie" }
@@ -163,7 +176,8 @@ class LinovelibWebDataSource : WebBookDataSource {
             referrer = "${LinovelibUrls.CONTENT_HOST}/",
             acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
             cookies = LinovelibSearchGuard.guardCookies(jsToken, cssToken),
-            cacheControl = true
+            cacheControl = true,
+            includeSessionCookies = false
         )
         val ticketToken = redeem.cookies()["jieqiSearchTicket"].orEmpty()
         require(ticketToken.isNotEmpty()) { "Missing jieqiSearchTicket search cookie" }
@@ -179,7 +193,8 @@ class LinovelibWebDataSource : WebBookDataSource {
             referrer = "${LinovelibUrls.CONTENT_HOST}/",
             acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
             cookies = LinovelibSearchGuard.ticketCookies(ticketToken),
-            cacheControl = true
+            cacheControl = true,
+            includeSessionCookies = false
         ).body()
     }
 
@@ -189,41 +204,79 @@ class LinovelibWebDataSource : WebBookDataSource {
         referrer: String,
         acceptLanguage: String,
         cookies: Map<String, String> = emptyMap(),
-        cacheControl: Boolean = false
+        cacheControl: Boolean = false,
+        includeSessionCookies: Boolean = true
     ): Connection.Response {
         val startedAt = System.nanoTime()
         return try {
-            val connection = Jsoup.connect(url)
-                .userAgent(userAgent)
-                .header("Accept", "*/*")
-                .header("Accept-Language", acceptLanguage)
-                .header("Connection", "close")
-                .referrer(referrer)
-                .cookies(cookies)
-                .followRedirects(true)
-                .ignoreHttpErrors(true)
-                .acceptLinovelibContentTypes()
-                .timeout(12_000)
-            if (cacheControl) connection.header("Cache-Control", "no-cache")
-            val response = connection.execute()
-            val html = response.body()
-            val inspection = diagnostics.inspectHtml(html)
-            val successful = diagnostics.isSuccessfulHttpStatus(response.statusCode())
-            diagnostics.info(
-                if (successful) "HTTP_OK" else "HTTP_STATUS_ERROR",
-                linkedMapOf(
-                    "requested" to url,
-                    "final" to response.url().toString(),
-                    "status" to response.statusCode(),
-                    "chars" to inspection.characters,
-                    "elapsedMs" to elapsedMilliseconds(startedAt),
-                    "loadFailure" to inspection.hasLoadFailure
+            var lastNetworkError: Throwable? = null
+            for (attempt in 0 until LinovelibRequestPolicy.maxAttempts) {
+                val response = try {
+                    executeSingleRequest(
+                        url = url,
+                        userAgent = userAgent,
+                        referrer = referrer,
+                        acceptLanguage = acceptLanguage,
+                        cookies = cookies,
+                        cacheControl = cacheControl,
+                        includeSessionCookies = includeSessionCookies
+                    )
+                } catch (throwable: Throwable) {
+                    throwable.rethrowIfCancellation()
+                    lastNetworkError = throwable
+                    if (throwable !is IOException || attempt == LinovelibRequestPolicy.maxAttempts - 1) {
+                        throw throwable
+                    }
+                    val retryDelay = LinovelibRequestPolicy.networkRetryDelayMillis(attempt)
+                    scheduleCooldown(retryDelay)
+                    diagnostics.info(
+                        "HTTP_RETRY",
+                        mapOf(
+                            "requested" to url,
+                            "attempt" to attempt + 1,
+                            "delayMs" to retryDelay,
+                            "reason" to throwable.javaClass.simpleName
+                        )
+                    )
+                    continue
+                }
+
+                val html = response.body()
+                val inspection = diagnostics.inspectHtml(html)
+                val successful = diagnostics.isSuccessfulHttpStatus(response.statusCode())
+                diagnostics.info(
+                    if (successful) "HTTP_OK" else "HTTP_STATUS_ERROR",
+                    linkedMapOf(
+                        "requested" to url,
+                        "final" to response.url().toString(),
+                        "status" to response.statusCode(),
+                        "chars" to inspection.characters,
+                        "elapsedMs" to elapsedMilliseconds(startedAt),
+                        "loadFailure" to inspection.hasLoadFailure
+                    )
                 )
-            )
-            if (!successful) {
-                throw IOException("HTTP ${response.statusCode()} for ${response.url()}")
+                if (successful) return response
+
+                val retryDelay = LinovelibRequestPolicy.retryDelayMillis(
+                    statusCode = response.statusCode(),
+                    retryAfter = response.header("Retry-After"),
+                    attempt = attempt
+                )
+                if (retryDelay == null || attempt == LinovelibRequestPolicy.maxAttempts - 1) {
+                    throw IOException("HTTP ${response.statusCode()} for ${response.url()}")
+                }
+                scheduleCooldown(retryDelay)
+                diagnostics.info(
+                    "HTTP_RETRY",
+                    mapOf(
+                        "requested" to url,
+                        "status" to response.statusCode(),
+                        "attempt" to attempt + 1,
+                        "delayMs" to retryDelay
+                    )
+                )
             }
-            response
+            throw lastNetworkError ?: IOException("Request attempts exhausted for $url")
         } catch (throwable: Throwable) {
             throwable.rethrowIfCancellation()
             diagnostics.error(
@@ -236,6 +289,51 @@ class LinovelibWebDataSource : WebBookDataSource {
             )
             throw throwable
         }
+    }
+
+    private fun executeSingleRequest(
+        url: String,
+        userAgent: String,
+        referrer: String,
+        acceptLanguage: String,
+        cookies: Map<String, String>,
+        cacheControl: Boolean,
+        includeSessionCookies: Boolean
+    ): Connection.Response = synchronized(requestLock) {
+        waitForRequestSlot()
+        val requestCookies = if (includeSessionCookies) {
+            sessionCookies.toMutableMap().apply { putAll(cookies) }
+        } else {
+            cookies
+        }
+        val connection = Jsoup.connect(url)
+            .userAgent(userAgent)
+            .header("Accept", "*/*")
+            .header("Accept-Language", acceptLanguage)
+            .referrer(referrer)
+            .cookies(requestCookies)
+            .followRedirects(true)
+            .ignoreHttpErrors(true)
+            .acceptLinovelibContentTypes()
+            .timeout(12_000)
+        if (cacheControl) connection.header("Cache-Control", "no-cache")
+        lastRequestStartedAtMillis = System.currentTimeMillis()
+        connection.execute().also { response ->
+            if (includeSessionCookies) sessionCookies.putAll(response.cookies())
+        }
+    }
+
+    private fun waitForRequestSlot() {
+        val now = System.currentTimeMillis()
+        val intervalDelay = LinovelibRequestPolicy.requestDelayMillis(lastRequestStartedAtMillis, now)
+        val cooldownDelay = (blockedUntilMillis - now).coerceAtLeast(0L)
+        val waitMillis = maxOf(intervalDelay, cooldownDelay)
+        if (waitMillis > 0L) Thread.sleep(waitMillis)
+        if (blockedUntilMillis <= System.currentTimeMillis()) blockedUntilMillis = 0L
+    }
+
+    private fun scheduleCooldown(delayMillis: Long) = synchronized(requestLock) {
+        blockedUntilMillis = maxOf(blockedUntilMillis, System.currentTimeMillis() + delayMillis)
     }
 
     private fun getChapterContentPages(chapterId: String, bookId: String): ParsedChapterContent {
@@ -418,7 +516,7 @@ class LinovelibWebDataSource : WebBookDataSource {
             LinovelibContentFormatter.format(blocks).forEach { block ->
                 when (block) {
                     is ParsedContentBlock.Text -> simpleText(block.text)
-                    is ParsedContentBlock.Image -> image(Uri.parse(block.url))
+                    is ParsedContentBlock.Image -> image(Uri.parse(imageUriString(block.url)))
                 }
             }
         }.build()
@@ -431,6 +529,9 @@ class LinovelibWebDataSource : WebBookDataSource {
             nextChapter = nextChapterId
         )
     }
+
+    private fun imageUriString(url: String): String =
+        if (imageProxyAvailable) LinovelibImageProxy.uriString(url) else url
 
     private companion object {
         const val TAG = "LinovelibWebDataSource"

@@ -335,11 +335,30 @@ class LinovelibHtmlParserTest {
         assertEquals("Monthly", rows[0].title)
         assertEquals(
             listOf(
-                ParsedExploreBook("10", "Ranked Book", "", ""),
-                ParsedExploreBook("11", "Second Book", "", "")
+                ParsedExploreBook("10", "Ranked Book", "", "https://tw.linovelib.com/files/article/image/0/10/10s.jpg"),
+                ParsedExploreBook("11", "Second Book", "", "https://tw.linovelib.com/files/article/image/0/11/11s.jpg")
             ),
             rows[0].books
         )
+    }
+
+    @Test
+    fun parseRankingRowsBuildsCoverPathForFourDigitBookId() {
+        val html = """
+            <div class="category-list">
+              <a class="fl-header">
+                <div class="fl-header-l">Monthly</div>
+                <img src="/files/article/image/3/3768/3768s.jpg" />
+              </a>
+              <ul class="fl-content">
+                <li><a href="/novel/3768.html">Ranked Book</a></li>
+              </ul>
+            </div>
+        """.trimIndent()
+
+        val book = parser.parseRankingRows(html).single().books.single()
+
+        assertEquals("https://tw.linovelib.com/files/article/image/3/3768/3768s.jpg", book.coverUrl)
     }
 
     @Test

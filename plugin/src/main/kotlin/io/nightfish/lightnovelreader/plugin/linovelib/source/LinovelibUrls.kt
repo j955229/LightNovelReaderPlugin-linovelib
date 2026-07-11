@@ -29,4 +29,9 @@ object LinovelibUrls {
 
     fun fullChapter(bookId: String, chapterId: String): String =
         "$CONTENT_HOST/novel/$bookId/$chapterId.html"
+
+    fun cover(bookId: String): String {
+        val directory = bookId.toIntOrNull()?.div(1_000) ?: 0
+        return "$HOST/files/article/image/$directory/$bookId/${bookId}s.jpg"
+    }
 }

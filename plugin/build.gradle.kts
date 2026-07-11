@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.ksp)
 }
 
 android {
@@ -15,8 +16,8 @@ android {
         applicationId = "io.nightfish.lightnovelreader.plugin.linovelib"
         minSdk = 24
         targetSdk = 36
-        versionCode = 18
-        versionName = "1.0.17"
+        versionCode = 19
+        versionName = "1.0.18"
     }
 
     buildFeatures {
@@ -46,6 +47,20 @@ androidComponents {
     }
 }
 
+androidComponents {
+    onVariants { variant ->
+        variant.sources.manifests.addStaticManifestFile(
+            layout.buildDirectory.file("generated/ksp/${variant.name}/resources/auto_register_manifest.xml").get().toString()
+        )
+    }
+}
+
+afterEvaluate {
+    listOf("Debug", "Release").forEach { variant ->
+        tasks.findByName("process${variant}MainManifest")?.dependsOn("ksp${variant}Kotlin")
+    }
+}
+
 tasks.withType<KotlinJvmCompile>().configureEach {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
@@ -66,6 +81,7 @@ dependencies {
     implementation(libs.kotlin.result)
 
     compileOnly(project(":api"))
+    ksp(libs.lightnovelreader.compiler)
 
     testImplementation(libs.junit)
     testImplementation(libs.jsoup)

@@ -9,6 +9,9 @@
 - 讀取書籍資訊、目錄、章節文字及插圖
 - 還原網站的章節順序並合併分頁內容
 - 章節段落加入首行縮排與段落間距
+- 支援 APP 原生整本快取及 EPUB 導出流程
+- 自動限制請求速度，遇到 HTTP 429 時等待並重試
+- 為需要 Referer 的插圖提供本機圖片代理
 
 ## 安裝
 
@@ -17,7 +20,7 @@
 3. 選擇「安裝外掛」，匯入 `.lnrp` 檔案。
 4. 安裝後啟用 `Linovelib TW`。
 
-目前插件 API 版本為 `2`，測試使用 LightNovelReader `1.2.0`。
+目前插件 API 版本為 `2`，已核對 LightNovelReader `1.2.0` 與 `1.2.1` 開發分支的相容規則。插件保留 API 2，讓兩個 APP 版本都能載入。
 
 ## 自行建置
 
@@ -46,7 +49,7 @@ plugin/build/outputs/apk/debug/plugin-debug.apk.lnrp
 - [dmzz-yyhyy/LightNovelReaderPlugin-Template](https://github.com/dmzz-yyhyy/LightNovelReaderPlugin-Template)
 - 使用參考分支：[`potato_lib`](https://github.com/dmzz-yyhyy/LightNovelReaderPlugin-Template/tree/potato_lib)
 
-插件功能與 Linovelib 解析程式依照上述模板提供的 LightNovelReader API 2 介面實作。此倉庫沒有保留 GitHub Fork 關係，方便獨立維護及發布版本。
+插件功能與 Linovelib 解析程式依照上述模板提供的 LightNovelReader API 2 介面實作。此倉庫沒有保留 GitHub Fork 關係，方便獨立維護及發布版本。建置已加入新版模板使用的 KSP 自動註冊清單。
 
 模板目前使用的公開 API 快照已變更部分介面。為了相容 LightNovelReader `1.2.0`，倉庫內保留該版本的 `api` 編譯介面，並以 `compileOnly` 連結；產生的插件不會重複封裝 APP API。
 
@@ -54,6 +57,7 @@ plugin/build/outputs/apk/debug/plugin-debug.apk.lnrp
 
 - 網站的搜尋驗證或頁面結構變更後，搜尋及章節讀取可能暫時失效。
 - 搜尋結果會額外讀取書籍詳情頁，以取得正確日期、字數及完結狀態。
+- 以 Android 應用方式安裝插件時，含圖片 EPUB 會使用插件圖片代理；僅匯入 `.lnrp` 檔案時，圖片下載仍受 APP 原生下載器是否傳送 Referer 限制。
 - 插件只提供資料來源；字體、字級、行距、頁面模式及主題由 LightNovelReader 控制。
 
 ## 聲明
