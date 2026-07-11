@@ -1,0 +1,56 @@
+[versions]
+ksp = "2.3.7"
+desugar = "2.1.5"
+agp = "9.1.1"
+jaxen = "2.0.3"
+kotlin = "2.3.21"
+kotlinxCoroutinesCore = "1.11.0"
+okhttp = "5.3.2"
+runtime = "1.11.1"
+navigationRuntimeKtx = "2.9.8"
+jetbrainsKotlinJvm = "2.3.21"
+foundationLayout = "1.11.1"
+composeBom = "2026.05.00"
+composeMaterial3 = "1.4.0"
+cxhttp = "1.2.5"
+kotlinSerialization = "1.11.0"
+jsoup = "1.22.2"
+kotlinResult = "2.3.1"
+lightnovelreader = "0.4-SNAPSHOT"
+junit = "4.13.2"
+dom4j = "2.2.0"
+
+[libraries]
+cxhttp = { module = "com.zhzc0x.cxhttp:cxhttp", version.ref = "cxhttp" }
+desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
+androidx-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "runtime" }
+jaxen = { module = "jaxen:jaxen", version.ref = "jaxen" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+lightnovelreader-api = { module = "io.nightfish.lightnovelreader:api", version.ref = "lightnovelreader" }
+lightnovelreader-compiler = { module = "io.nightfish.lightnovelreader:compiler", version.ref = "lightnovelreader" }
+androidx-navigation-runtime-ktx = { group = "androidx.navigation", name = "navigation-runtime-ktx", version.ref = "navigationRuntimeKtx" }
+androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "composeMaterial3" }
+kotlinx-serialization-cbor = { module = "org.jetbrains.kotlinx:kotlinx-serialization-cbor", version.ref = "kotlinSerialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinSerialization" }
+kotlin-result = { module = "com.michael-bull.kotlin-result:kotlin-result", version.ref = "kotlinResult" }
+kotlin-result-coroutines = { module = "com.michael-bull.kotlin-result:kotlin-result-coroutines", version.ref = "kotlinResult" }
+okhttp3-logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
+okhttp3-okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+junit = { module = "junit:junit", version.ref = "junit" }
+androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundationLayout" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationRuntimeKtx" }
+dom4j = { module = "org.dom4j:dom4j", version.ref = "dom4j" }
+
+[plugins]
+kotlin_serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+android-dynamic-feature = { id = "com.android.dynamic-feature", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+compose_compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+jetbrains-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "jetbrainsKotlinJvm" }
+google_ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

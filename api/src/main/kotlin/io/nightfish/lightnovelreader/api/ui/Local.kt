@@ -1,0 +1,67 @@
+package io.nightfish.lightnovelreader.api.ui
+
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.intl.Locale
+import androidx.compose.ui.text.intl.LocaleList
+import androidx.navigation.NavController
+
+/**
+ * 当前页面的导航控制器
+ * 需在Compose导航宿主内使用
+ *
+ * @since Api 2
+ */
+val LocalNavController = compositionLocalOf<NavController> {
+    error("CompositionLocal LocalNavController not present")
+}
+
+/**
+ * 当前阅读器的样式配置
+ *
+ * @since Api 2
+ */
+val LocalReaderStyle = compositionLocalOf {
+    ReaderStyle(
+        fontSize = 15f,
+        fontLineHeight = 7f,
+        fontWeight = 500f,
+        textColor = Color.Unspecified,
+        textDarkColor = Color.Unspecified,
+    )
+}
+
+/**
+ * 当前应用使用的文本语言区域列表
+ * 用于控制Compose文本排版的语言环境
+ *
+ * @since Api 2
+ */
+val LocalTextLocaleList = compositionLocalOf {
+    LocaleList(Locale.current)
+}
+
+/**
+ * 将应用语言设置字符串转换为Compose文本排版所需的[LocaleList]
+ *
+ * @param appLocale 应用语言字符串, 格式为"语言-地区"(如"zh-CN")
+ *
+ * @return 对应的[LocaleList]
+ *
+ * @since Api 2
+ */
+fun appLocaleToTextLocaleList(appLocale: String): LocaleList {
+    val parts = appLocale.split("-")
+    val language = parts.getOrNull(0).orEmpty()
+    val region = parts.getOrNull(1).orEmpty()
+
+    val tag = buildString {
+        append(language.ifBlank { "en" })
+        if (region.isNotBlank()) {
+            append("-")
+            append(region)
+        }
+    }
+
+    return LocaleList(Locale(tag))
+}
