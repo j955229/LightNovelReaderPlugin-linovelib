@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -16,8 +17,8 @@ android {
         applicationId = "io.nightfish.lightnovelreader.plugin.linovelib"
         minSdk = 24
         targetSdk = 36
-        versionCode = 21
-        versionName = "1.0.20"
+        versionCode = 22
+        versionName = "1.0.21"
     }
 
     buildFeatures {
@@ -68,27 +69,71 @@ tasks.withType<KotlinJvmCompile>().configureEach {
     }
 }
 
-val verifyNoCoroutineSyncLinkage = tasks.register("verifyNoCoroutineSyncLinkage") {
-    dependsOn("compileReleaseKotlin")
+fun registerHostAbiCheck(variant: String) = tasks.register(
+    "verify${variant.replaceFirstChar(Char::uppercase)}HostAbi"
+) {
+    val variantTitle = variant.replaceFirstChar(Char::uppercase)
+    dependsOn("package$variantTitle")
     doLast {
-        val marker = "kotlinx/coroutines/sync"
+        val forbiddenMarkers = listOf(
+            "kotlinx/coroutines/sync",
+            "java/util/Base64",
+            "j\$/util/Base64",
+            "withoutPadding"
+        )
         val offenders = fileTree(
             layout.buildDirectory.dir(
-                "intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes"
+                "intermediates/built_in_kotlinc/$variant/compile${variantTitle}Kotlin/classes"
             )
         )
             .matching { include("**/*.class") }
             .files
-            .filter { String(it.readBytes(), Charsets.ISO_8859_1).contains(marker) }
+            .filter { file ->
+                val bytecode = String(file.readBytes(), Charsets.ISO_8859_1)
+                forbiddenMarkers.any(bytecode::contains)
+            }
         check(offenders.isEmpty()) {
-            "Release classes link coroutine synchronization APIs unavailable in the host app: " +
+            "Release classes link APIs unavailable in the host app: " +
                 offenders.joinToString { it.name }
+        }
+
+        val apk = fileTree(layout.buildDirectory.dir("outputs/apk/$variant")) {
+            include("*.apk", "*.apk.lnrp")
+        }.files.maxByOrNull(File::lastModified)
+            ?: error("No packaged $variant APK found for host ABI verification")
+        val dexContents = mutableMapOf<String, String>()
+        ZipFile(apk).use { zip ->
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                if (entry.name.matches(Regex("classes\\d*\\.dex"))) {
+                    dexContents[entry.name] = zip.getInputStream(entry).use { input ->
+                        String(input.readBytes(), Charsets.ISO_8859_1)
+                    }
+                }
+            }
+        }
+        val dexChecks = mapOf(
+            "LinovelibImageProxy" to listOf("java/util/Base64", "j\$/util/Base64", "withoutPadding")
+        )
+        dexChecks.forEach { (classMarker, forbiddenForClass) ->
+            val matchingDex = dexContents.filterValues { classMarker in it }
+            check(matchingDex.isNotEmpty()) { "$classMarker was not found in packaged DEX files" }
+            val badDex = matchingDex.filterValues { dex -> forbiddenForClass.any(dex::contains) }
+            check(badDex.isEmpty()) {
+                "$classMarker shares packaged DEX with unavailable host APIs: ${badDex.keys}"
+            }
         }
     }
 }
 
+val verifyDebugHostAbi = registerHostAbiCheck("debug")
+val verifyReleaseHostAbi = registerHostAbiCheck("release")
 tasks.configureEach {
-    if (name == "assembleRelease") dependsOn(verifyNoCoroutineSyncLinkage)
+    when (name) {
+        "assembleDebug" -> dependsOn(verifyDebugHostAbi)
+        "assembleRelease" -> dependsOn(verifyReleaseHostAbi)
+    }
 }
 
 dependencies {

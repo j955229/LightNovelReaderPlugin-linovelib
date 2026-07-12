@@ -1,5 +1,11 @@
 # LightNovelReaderPlugin-linovelib
 
+## v1.0.21
+
+- 修正含插圖章節在 LightNovelReader 1.2.1 呼叫 `Base64.withoutPadding()` 時失敗的問題。
+- 圖片代理網址改用外掛自有的十六進位編碼，並相容舊版 Base64 快取網址。
+- Release 建置新增 Base64 ABI 檢查，避免匯出與快取再次因 APP Java 相容層差異失敗。
+
 ## v1.0.20
 
 - 修正 LightNovelReader 1.2.1 中 Coroutine 版本不相容造成的探索頁閃退與匯出停滯。

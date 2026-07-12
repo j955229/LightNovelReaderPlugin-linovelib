@@ -10,7 +10,7 @@ on:
       tag:
         description: Existing tag to publish
         required: true
-        default: v1.0.20
+        default: v1.0.21
 
 permissions:
   contents: write
@@ -37,7 +37,7 @@ jobs:
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: Linovelib-TW-1.0.20
+          name: Linovelib-TW-1.0.21
           path: plugin/build/outputs/apk/debug/*.lnrp
 
       - name: Publish GitHub release
