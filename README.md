@@ -1,5 +1,11 @@
 # LightNovelReaderPlugin-linovelib
 
+## v1.0.20
+
+- 修正 LightNovelReader 1.2.1 中 Coroutine 版本不相容造成的探索頁閃退與匯出停滯。
+- 移除外掛對 `kotlinx.coroutines.sync` 的執行期連結，並將 Coroutine 版本對齊 APP。
+- 搜尋明細與網站請求改為依序執行，避免同時請求與網站限制互相影響。
+
 ## v1.0.19
 
 - 修正搜尋結果直接跳轉小說頁時顯示 0 筆的問題，例如關鍵詞「男性禁入」可找到 ID 3768。

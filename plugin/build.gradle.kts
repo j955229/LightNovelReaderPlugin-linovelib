@@ -16,8 +16,8 @@ android {
         applicationId = "io.nightfish.lightnovelreader.plugin.linovelib"
         minSdk = 24
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.0.19"
+        versionCode = 21
+        versionName = "1.0.20"
     }
 
     buildFeatures {
@@ -66,6 +66,29 @@ tasks.withType<KotlinJvmCompile>().configureEach {
         jvmTarget.set(JvmTarget.JVM_17)
         freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
     }
+}
+
+val verifyNoCoroutineSyncLinkage = tasks.register("verifyNoCoroutineSyncLinkage") {
+    dependsOn("compileReleaseKotlin")
+    doLast {
+        val marker = "kotlinx/coroutines/sync"
+        val offenders = fileTree(
+            layout.buildDirectory.dir(
+                "intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes"
+            )
+        )
+            .matching { include("**/*.class") }
+            .files
+            .filter { String(it.readBytes(), Charsets.ISO_8859_1).contains(marker) }
+        check(offenders.isEmpty()) {
+            "Release classes link coroutine synchronization APIs unavailable in the host app: " +
+                offenders.joinToString { it.name }
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease") dependsOn(verifyNoCoroutineSyncLinkage)
 }
 
 dependencies {

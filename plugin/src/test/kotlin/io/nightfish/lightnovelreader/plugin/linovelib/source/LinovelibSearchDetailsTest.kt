@@ -3,12 +3,25 @@ package io.nightfish.lightnovelreader.plugin.linovelib.source
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicInteger
 
 class LinovelibSearchDetailsTest {
+    @Test
+    fun `does not link coroutine synchronization classes unavailable in the host app`() {
+        val sourcePath = "io/nightfish/lightnovelreader/plugin/linovelib/source/LinovelibSearchDetails.kt"
+        val source = listOf(
+            File(System.getProperty("user.dir"), "plugin/src/main/kotlin/$sourcePath"),
+            File(System.getProperty("user.dir"), "src/main/kotlin/$sourcePath")
+        ).first { it.isFile }.readText()
+
+        assertFalse(source.contains("kotlinx.coroutines.sync"))
+    }
+
     @Test
     fun `loads complete information for lightweight search rows`() = runBlocking {
         val requestedUrls = mutableListOf<String>()
@@ -34,7 +47,7 @@ class LinovelibSearchDetailsTest {
     }
 
     @Test
-    fun `limits concurrent detail requests to four`() = runBlocking {
+    fun `loads detail requests one at a time`() = runBlocking {
         val active = AtomicInteger(0)
         val maximumActive = AtomicInteger(0)
         val details = LinovelibSearchDetails(
@@ -53,8 +66,7 @@ class LinovelibSearchDetailsTest {
         val result = details.load(books)
 
         assertEquals(9, result.size)
-        assertTrue("Expected concurrent requests", maximumActive.get() > 1)
-        assertTrue("Maximum was ${maximumActive.get()}", maximumActive.get() <= 4)
+        assertEquals(1, maximumActive.get())
     }
 
     @Test

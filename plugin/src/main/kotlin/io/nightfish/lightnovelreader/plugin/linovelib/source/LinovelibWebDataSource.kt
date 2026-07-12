@@ -219,7 +219,8 @@ class LinovelibWebDataSource(
                         acceptLanguage = acceptLanguage,
                         cookies = cookies,
                         cacheControl = cacheControl,
-                        includeSessionCookies = includeSessionCookies
+                        includeSessionCookies = includeSessionCookies,
+                        attempt = attempt
                     )
                 } catch (throwable: Throwable) {
                     throwable.rethrowIfCancellation()
@@ -228,7 +229,6 @@ class LinovelibWebDataSource(
                         throw throwable
                     }
                     val retryDelay = LinovelibRequestPolicy.networkRetryDelayMillis(attempt)
-                    requestCoordinator.scheduleCooldown(retryDelay)
                     diagnostics.info(
                         "HTTP_RETRY",
                         mapOf(
@@ -265,7 +265,6 @@ class LinovelibWebDataSource(
                 if (retryDelay == null || attempt == LinovelibRequestPolicy.maxAttempts - 1) {
                     throw IOException("HTTP ${response.statusCode()} for ${response.url()}")
                 }
-                requestCoordinator.scheduleCooldown(retryDelay)
                 diagnostics.info(
                     "HTTP_RETRY",
                     mapOf(
@@ -298,8 +297,36 @@ class LinovelibWebDataSource(
         acceptLanguage: String,
         cookies: Map<String, String>,
         cacheControl: Boolean,
-        includeSessionCookies: Boolean
-    ): Connection.Response = requestCoordinator.execute {
+        includeSessionCookies: Boolean,
+        attempt: Int
+    ): Connection.Response = requestCoordinator.execute(
+        cooldownAfter = { result ->
+            if (attempt == LinovelibRequestPolicy.maxAttempts - 1) {
+                null
+            } else {
+                result.fold(
+                    onSuccess = { response ->
+                        if (diagnostics.isSuccessfulHttpStatus(response.statusCode())) {
+                            null
+                        } else {
+                            LinovelibRequestPolicy.retryDelayMillis(
+                                statusCode = response.statusCode(),
+                                retryAfter = response.header("Retry-After"),
+                                attempt = attempt
+                            )
+                        }
+                    },
+                    onFailure = { throwable ->
+                        if (throwable is IOException) {
+                            LinovelibRequestPolicy.networkRetryDelayMillis(attempt)
+                        } else {
+                            null
+                        }
+                    }
+                )
+            }
+        }
+    ) {
         val requestCookies = if (includeSessionCookies) {
             sessionCookies.toMutableMap().apply { putAll(cookies) }
         } else {
