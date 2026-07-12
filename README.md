@@ -4,7 +4,7 @@
 
 ## 下載
 
-[下載 Linovelib TW 1.1.0](https://github.com/j955229/LightNovelReaderPlugin-linovelib/releases/download/v1.1.0/Linovelib-TW-1.1.0.apk.lnrp)
+[下載 Linovelib TW 1.1.1](https://github.com/j955229/LightNovelReaderPlugin-linovelib/releases/download/v1.1.1/Linovelib-TW-1.1.1.apk.lnrp)
 
 支援 LightNovelReader `1.2.0`、`1.2.1 alpha`，外掛 API 版本為 `2`。
 

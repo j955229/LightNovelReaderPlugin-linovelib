@@ -18,12 +18,12 @@ class LinovelibHtmlParserTest {
               </head>
               <body>
                 <h1 class="book-title">High School DxD</h1>
-                <span class="authorname"><a>Ichiei Ishibumi</a></span>
+                <span class="authorname"><a href="/authorarticle/Ichiei-Ishibumi.html">Ichiei Ishibumi</a></span>
                 <p class="book-meta book-layout-inline">29035 readers<span>/</span>5283 votes<b>/</b></p>
                 <p class="book-meta book-layout-inline">398.2 ${"\u842c\u5b57"}<span>|</span>${"\u5b8c\u7d50"}<span>|</span>anime</p>
                 <span class="tag-small-group origin-left">
-                  <em class="tag-small red"><a>School</a></em>
-                  <em class="tag-small red"><a>Fantasy</a></em>
+                  <em class="tag-small red"><a href="/wenku/lastupdate_1_0_0_0_0_0_0_1_0.html">School</a></em>
+                  <em class="tag-small red"><a href="/wenku/lastupdate_2_0_0_0_0_0_0_1_0.html">Fantasy</a></em>
                   <em class="tag-small orange"><a>Fujimi Fantasia Bunko</a></em>
                 </span>
                 <section id="bookSummary">
@@ -50,6 +50,14 @@ class LinovelibHtmlParserTest {
         assertEquals(3_982_000, book.wordCount)
         assertEquals(LocalDate.of(2024, 2, 25), book.lastUpdated)
         assertTrue(book.isComplete)
+        assertEquals(
+            "https://tw.linovelib.com/authorarticle/Ichiei-Ishibumi.html",
+            parser.relatedTarget("\u4f5c\u8005\uff1aIchiei Ishibumi")
+        )
+        assertEquals(
+            "https://tw.linovelib.com/wenku/lastupdate_1_0_0_0_0_0_0_1_0.html",
+            parser.relatedTarget("School")
+        )
     }
 
     @Test

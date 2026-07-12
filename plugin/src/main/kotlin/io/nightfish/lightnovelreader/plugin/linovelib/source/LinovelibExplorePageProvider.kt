@@ -44,21 +44,36 @@ class LinovelibExplorePageProvider(
     fun registerRelatedPage(tag: String): String {
         val displayTag = tag.trim().ifEmpty { "Related" }
         val baseId = "$RELATED_PAGE_ID-${Integer.toHexString(displayTag.hashCode())}"
+        val targetUrl = parser.relatedTarget(displayTag)
         var pageId = baseId
         var suffix = 2
         while (true) {
             val existing = exploreExpandedPageDataSourceMap[pageId]
             if (existing == null) {
-                registerExpandedPageDataSource(
-                    pageId,
-                    LinovelibRelatedExpandedPageDataSource(searchProvider, displayTag)
-                )
+                registerExpandedPageDataSource(pageId, relatedPage(displayTag, targetUrl))
                 return pageId
             }
-            if (existing.title == displayTag) return pageId
+            if (existing.title == displayTag) {
+                if (targetUrl != null && existing !is LinovelibLinkedExpandedPageDataSource) {
+                    registerExpandedPageDataSource(pageId, relatedPage(displayTag, targetUrl))
+                }
+                return pageId
+            }
             pageId = "$baseId-${suffix++}"
         }
     }
+
+    private fun relatedPage(displayTag: String, targetUrl: String?) =
+        if (targetUrl == null) {
+            LinovelibRelatedExpandedPageDataSource(searchProvider, displayTag)
+        } else {
+            LinovelibLinkedExpandedPageDataSource(
+                displayTag = displayTag,
+                targetUrl = targetUrl,
+                htmlLoader = htmlLoader,
+                parser = parser
+            )
+        }
 
     companion object {
         const val RELATED_PAGE_ID = "linovelib-related"

@@ -66,6 +66,7 @@ class LinovelibHtmlParser(
 ) {
     private val parsedBookCache = ConcurrentHashMap<String, ParsedBookInformation>()
     private val exploreBookCache = ConcurrentHashMap<String, ParsedExploreBook>()
+    private val relatedTargetCache = ConcurrentHashMap<String, String>()
 
     fun parseBookInformation(id: String, html: String): ParsedBookInformation {
         val document = Jsoup.parse(html, LinovelibUrls.HOST)
@@ -78,8 +79,9 @@ class LinovelibHtmlParser(
                 document.select(".book-meta.book-layout-inline").joinToString(" ") { it.text() }
             }
         val tagElements = document.select(".tag-small-group .tag-small")
-        val tags = tagElements
+        val bookTagElements = tagElements
             .filterNot { it.hasClass("orange") || it.hasClass("gray") }
+        val tags = bookTagElements
             .map { it.text().trim() }
             .filter { it.isNotEmpty() }
         val publishingHouse = tagElements
@@ -87,14 +89,30 @@ class LinovelibHtmlParser(
             ?.text()
             .orEmpty()
 
+        val authorElement = document.selectFirst(".authorname a")
+        val author = authorElement?.text().orEmpty()
+            .ifBlank { meta("og:novel:author") }
+        val authorUrl = authorElement?.absUrl("href").orEmpty()
+            .ifBlank { authorElement?.attr("href").orEmpty() }
+            .ifBlank { meta("og:novel:author_link") }
+            .let(::normalizeUrl)
+        if (author.isNotBlank() && authorUrl.isNotBlank()) {
+            relatedTargetCache[LinovelibRelatedSearch.authorDisplayTag(author)] = authorUrl
+        }
+        bookTagElements.forEach { element ->
+            val tag = element.text().trim()
+            val link = element.selectFirst("a[href]") ?: return@forEach
+            val target = link.absUrl("href").ifBlank { link.attr("href") }.let(::normalizeUrl)
+            if (tag.isNotBlank() && target.isNotBlank()) relatedTargetCache[tag] = target
+        }
+
         return ParsedBookInformation(
             id = id,
             title = document.selectFirst(".book-detail-info .book-title, .book-title")?.text().orEmpty()
                 .ifBlank { meta("og:novel:book_name") },
             subtitle = document.selectFirst(".backupname span")?.text().orEmpty(),
             coverUrl = normalizeUrl(meta("og:image")),
-            author = document.selectFirst(".authorname a")?.text().orEmpty()
-                .ifBlank { meta("og:novel:author") },
+            author = author,
             description = document.selectFirst("#bookSummary content")
                 ?.let(::htmlWithBreaksToText)
                 ?.ifBlank { null }
@@ -272,6 +290,8 @@ class LinovelibHtmlParser(
     fun cachedBookInformation(id: String): ParsedBookInformation? = parsedBookCache[id]
 
     fun cachedExploreBook(id: String): ParsedExploreBook? = exploreBookCache[id]
+
+    fun relatedTarget(displayTag: String): String? = relatedTargetCache[displayTag.trim()]
 
     private fun parseExploreBook(element: Element): ParsedExploreBook? {
         val id = bookIdFromHref(element.attr("href")) ?: return null
