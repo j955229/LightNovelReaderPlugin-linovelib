@@ -10,7 +10,7 @@ on:
       tag:
         description: Existing tag to publish
         required: true
-        default: v1.0.21
+        default: v1.1.0
 
 permissions:
   contents: write
@@ -32,12 +32,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Test and build
-        run: bash ./gradlew :plugin:testDebugUnitTest :plugin:assembleDebug
+        run: bash ./gradlew :plugin:testDebugUnitTest :plugin:assembleDebug :plugin:assembleRelease
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: Linovelib-TW-1.0.21
+          name: Linovelib-TW-1.1.0
           path: plugin/build/outputs/apk/debug/*.lnrp
 
       - name: Publish GitHub release
@@ -48,4 +48,4 @@ jobs:
         run: |
           VERSION="${RELEASE_TAG#v}"
           cp plugin/build/outputs/apk/debug/plugin-debug.apk.lnrp "Linovelib-TW-${VERSION}.apk.lnrp"
-          gh release create "$RELEASE_TAG" "Linovelib-TW-${VERSION}.apk.lnrp" --title "Linovelib TW ${VERSION}" --notes "相容 LightNovelReader 1.2.0 與 1.2.1（API 2）。修正直接跳轉搜尋、EPUB 圖片 HTTP 403、取消後繼續請求與重複連線監測，並延長章節記憶體快取；完整測試全部通過。"
+          gh release create "$RELEASE_TAG" "Linovelib-TW-${VERSION}.apk.lnrp" --title "Linovelib TW ${VERSION}" --notes "修正離線快取圖片與 EPUB 導出；新增作者及標籤相關作品搜尋。支援 LightNovelReader 1.2.0、1.2.1 alpha，API 2。"

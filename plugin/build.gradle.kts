@@ -17,8 +17,8 @@ android {
         applicationId = "io.nightfish.lightnovelreader.plugin.linovelib"
         minSdk = 24
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.0.21"
+        versionCode = 23
+        versionName = "1.1.0"
     }
 
     buildFeatures {
@@ -96,6 +96,15 @@ fun registerHostAbiCheck(variant: String) = tasks.register(
             "Release classes link APIs unavailable in the host app: " +
                 offenders.joinToString { it.name }
         }
+        val webDataSourceClass = fileTree(
+            layout.buildDirectory.dir(
+                "intermediates/built_in_kotlinc/$variant/compile${variantTitle}Kotlin/classes"
+            )
+        ).matching { include("**/LinovelibWebDataSource.class") }.singleFile
+        val webDataSourceBytecode = String(webDataSourceClass.readBytes(), Charsets.ISO_8859_1)
+        check("io/nightfish/lightnovelreader/api/Route" !in webDataSourceBytecode) {
+            "LinovelibWebDataSource directly links Route, which is unavailable in LightNovelReader 1.2.0"
+        }
 
         val apk = fileTree(layout.buildDirectory.dir("outputs/apk/$variant")) {
             include("*.apk", "*.apk.lnrp")
@@ -114,7 +123,7 @@ fun registerHostAbiCheck(variant: String) = tasks.register(
             }
         }
         val dexChecks = mapOf(
-            "LinovelibImageProxy" to listOf("java/util/Base64", "j\$/util/Base64", "withoutPadding")
+            "LinovelibImageStore" to listOf("java/util/Base64", "j\$/util/Base64", "withoutPadding")
         )
         dexChecks.forEach { (classMarker, forbiddenForClass) ->
             val matchingDex = dexContents.filterValues { classMarker in it }
@@ -149,6 +158,7 @@ dependencies {
     implementation(libs.kotlin.result)
 
     compileOnly(project(":api"))
+    compileOnly(libs.androidx.navigation.runtime.ktx)
     ksp(libs.lightnovelreader.compiler)
 
     testImplementation(libs.junit)

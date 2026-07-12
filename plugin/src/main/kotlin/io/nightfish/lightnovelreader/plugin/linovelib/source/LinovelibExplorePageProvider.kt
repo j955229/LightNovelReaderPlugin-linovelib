@@ -5,12 +5,14 @@ import io.nightfish.lightnovelreader.api.explore.ExploreBooksRow
 import io.nightfish.lightnovelreader.api.explore.ExploreDisplayBook
 import io.nightfish.lightnovelreader.api.web.explore.AbstractDefaultExplorePageProvider
 import io.nightfish.lightnovelreader.api.web.explore.ExploreTapPageDataSource
+import io.nightfish.lightnovelreader.api.web.search.SearchProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
 class LinovelibExplorePageProvider(
     private val htmlLoader: suspend (String) -> String,
-    private val parser: LinovelibHtmlParser
+    private val parser: LinovelibHtmlParser,
+    private val searchProvider: SearchProvider
 ) : AbstractDefaultExplorePageProvider() {
     init {
         registerTapPage(
@@ -37,6 +39,29 @@ class LinovelibExplorePageProvider(
                 }
             )
         )
+    }
+
+    fun registerRelatedPage(tag: String): String {
+        val displayTag = tag.trim().ifEmpty { "Related" }
+        val baseId = "$RELATED_PAGE_ID-${Integer.toHexString(displayTag.hashCode())}"
+        var pageId = baseId
+        var suffix = 2
+        while (true) {
+            val existing = exploreExpandedPageDataSourceMap[pageId]
+            if (existing == null) {
+                registerExpandedPageDataSource(
+                    pageId,
+                    LinovelibRelatedExpandedPageDataSource(searchProvider, displayTag)
+                )
+                return pageId
+            }
+            if (existing.title == displayTag) return pageId
+            pageId = "$baseId-${suffix++}"
+        }
+    }
+
+    companion object {
+        const val RELATED_PAGE_ID = "linovelib-related"
     }
 }
 

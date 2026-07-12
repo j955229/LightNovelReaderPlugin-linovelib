@@ -3,6 +3,7 @@ package io.nightfish.lightnovelreader.plugin.linovelib.source
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.navigation.NavController
 import io.nightfish.lightnovelreader.api.book.BookInformation
 import io.nightfish.lightnovelreader.api.book.BookVolumes
 import io.nightfish.lightnovelreader.api.book.ChapterContent
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.Connection
+import java.io.File
 import java.io.IOException
 
 @Suppress("unused")
@@ -55,13 +57,23 @@ class LinovelibWebDataSource(
     override val id: Int = "linovelib_tw".hashCode()
     override val offLine: Boolean get() = offlineStateFlow.value
     override val isOffLineFlow: StateFlow<Boolean> = offlineStateFlow
-    override val searchProvider: SearchProvider = LinovelibSearchProvider(
+    private val linovelibSearchProvider = LinovelibSearchProvider(
         ::getHtml,
         ::getSearchHtml,
         parser,
         diagnostics
     )
-    override val explorePageProvider: ExplorePageProvider = LinovelibExplorePageProvider(::getHtml, parser)
+    override val searchProvider: SearchProvider = linovelibSearchProvider
+    private val linovelibExplorePageProvider = LinovelibExplorePageProvider(
+        ::getHtml,
+        parser,
+        linovelibSearchProvider
+    )
+    override val explorePageProvider: ExplorePageProvider = linovelibExplorePageProvider
+    private val imageStore = LinovelibImageStore(
+        directory = File(context.filesDir, "linovelib/chapter-images"),
+        diagnostics = diagnostics
+    )
     override val imageHeader: Map<String, String> = mapOf(
         "User-Agent" to CONTENT_USER_AGENT,
         "Referer" to LinovelibUrls.CONTENT_HOST,
@@ -124,6 +136,12 @@ class LinovelibWebDataSource(
             )
             ChapterContent.empty(chapterId)
         }
+    }
+
+    override fun progressBookTagClick(tag: String, navController: NavController) {
+        val pageId = linovelibExplorePageProvider.registerRelatedPage(tag)
+        val route = LinovelibRelatedNavigation.createExpandedRoute(navController.javaClass.classLoader, pageId)
+        navController.navigate(route)
     }
 
     private suspend fun getHtml(url: String): String = executeRequest(
@@ -480,7 +498,7 @@ class LinovelibWebDataSource(
             coverUrl = coverUrl.takeIf(String::isNotEmpty)?.let(Uri::parse) ?: Uri.EMPTY,
             author = author,
             description = description,
-            tags = tags,
+            tags = LinovelibRelatedSearch.displayTags(author, tags),
             publishingHouse = publishingHouse,
             wordCount = WordCount(wordCount),
             lastUpdated = lastUpdated.atStartOfDay(),
@@ -525,12 +543,13 @@ class LinovelibWebDataSource(
             }
         )
 
-    private fun ParsedChapterContent.toChapterContent(): ChapterContent {
+    private suspend fun ParsedChapterContent.toChapterContent(): ChapterContent {
+        val localizedBlocks = imageStore.localize(LinovelibContentFormatter.format(blocks))
         val content = ContentBuilder().apply {
-            LinovelibContentFormatter.format(blocks).forEach { block ->
+            localizedBlocks.forEach { block ->
                 when (block) {
                     is ParsedContentBlock.Text -> simpleText(block.text)
-                    is ParsedContentBlock.Image -> image(Uri.parse(imageUriString(block.url)))
+                    is ParsedContentBlock.Image -> image(Uri.parse(block.url))
                 }
             }
         }.build()
@@ -543,8 +562,6 @@ class LinovelibWebDataSource(
             nextChapter = nextChapterId
         )
     }
-
-    private fun imageUriString(url: String): String = LinovelibImageProxy.route(url)
 
     private companion object {
         const val TAG = "LinovelibWebDataSource"
