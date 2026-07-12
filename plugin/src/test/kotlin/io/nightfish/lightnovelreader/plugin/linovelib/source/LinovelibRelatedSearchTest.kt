@@ -16,10 +16,11 @@ class LinovelibRelatedSearchTest {
     @Test
     fun `adds clickable author chip without duplicating tags`() {
         assertEquals(
-            listOf("\u4f5c\u8005\uff1a\u5ddd\u539f\u792b", "\u5947\u5e7b", "\u6821\u5712"),
+            listOf("\u96fb\u64ca\u6587\u5eab", "\u4f5c\u8005\uff1a\u5ddd\u539f\u792b", "\u5947\u5e7b", "\u6821\u5712"),
             LinovelibRelatedSearch.displayTags(
                 "\u5ddd\u539f\u792b",
-                listOf("\u5947\u5e7b", "\u6821\u5712", "\u5947\u5e7b")
+                listOf("\u5947\u5e7b", "\u6821\u5712", "\u5947\u5e7b"),
+                "\u96fb\u64ca\u6587\u5eab"
             )
         )
         assertEquals("\u5ddd\u539f\u792b", LinovelibRelatedSearch.keyword("\u4f5c\u8005\uff1a\u5ddd\u539f\u792b"))

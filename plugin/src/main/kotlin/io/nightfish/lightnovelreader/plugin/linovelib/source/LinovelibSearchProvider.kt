@@ -117,8 +117,8 @@ internal class LinovelibSearchProvider(
             coverUrl = coverUrl.takeIf(String::isNotEmpty)?.let(Uri::parse) ?: Uri.EMPTY,
             author = author,
             description = description,
-            tags = LinovelibRelatedSearch.displayTags(author, tags),
-            publishingHouse = publishingHouse,
+            tags = LinovelibRelatedSearch.displayTags(author, tags, publishingHouse),
+            publishingHouse = "",
             wordCount = WordCount(wordCount),
             lastUpdated = lastUpdated.atStartOfDay(),
             isComplete = isComplete

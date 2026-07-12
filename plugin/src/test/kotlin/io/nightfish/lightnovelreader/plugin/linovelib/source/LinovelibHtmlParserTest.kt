@@ -24,7 +24,7 @@ class LinovelibHtmlParserTest {
                 <span class="tag-small-group origin-left">
                   <em class="tag-small red"><a href="/wenku/lastupdate_1_0_0_0_0_0_0_1_0.html">School</a></em>
                   <em class="tag-small red"><a href="/wenku/lastupdate_2_0_0_0_0_0_0_1_0.html">Fantasy</a></em>
-                  <em class="tag-small orange"><a>Fujimi Fantasia Bunko</a></em>
+                  <em class="tag-small orange"><a href="/wenku/fujimi/1.html">Fujimi Fantasia Bunko</a></em>
                 </span>
                 <section id="bookSummary">
                   <content>Line one<br>Line two</content>
@@ -57,6 +57,10 @@ class LinovelibHtmlParserTest {
         assertEquals(
             "https://tw.linovelib.com/wenku/lastupdate_1_0_0_0_0_0_0_1_0.html",
             parser.relatedTarget("School")
+        )
+        assertEquals(
+            "https://tw.linovelib.com/wenku/fujimi/1.html",
+            parser.relatedTarget("Fujimi Fantasia Bunko")
         )
     }
 

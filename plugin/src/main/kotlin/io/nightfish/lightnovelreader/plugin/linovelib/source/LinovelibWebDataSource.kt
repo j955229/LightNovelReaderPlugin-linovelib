@@ -140,8 +140,10 @@ class LinovelibWebDataSource(
 
     override fun progressBookTagClick(tag: String, navController: NavController) {
         val pageId = linovelibExplorePageProvider.registerRelatedPage(tag)
+        diagnostics.info("RELATED_NAV_START", mapOf("tag" to tag, "pageId" to pageId))
         val route = LinovelibRelatedNavigation.createExpandedRoute(navController.javaClass.classLoader, pageId)
         navController.navigate(route)
+        diagnostics.info("RELATED_NAV_DONE", mapOf("mode" to "route", "pageId" to pageId))
     }
 
     private suspend fun getHtml(url: String): String = executeRequest(
@@ -498,8 +500,8 @@ class LinovelibWebDataSource(
             coverUrl = coverUrl.takeIf(String::isNotEmpty)?.let(Uri::parse) ?: Uri.EMPTY,
             author = author,
             description = description,
-            tags = LinovelibRelatedSearch.displayTags(author, tags),
-            publishingHouse = publishingHouse,
+            tags = LinovelibRelatedSearch.displayTags(author, tags, publishingHouse),
+            publishingHouse = "",
             wordCount = WordCount(wordCount),
             lastUpdated = lastUpdated.atStartOfDay(),
             isComplete = isComplete

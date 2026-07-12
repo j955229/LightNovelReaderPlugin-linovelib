@@ -17,8 +17,8 @@ android {
         applicationId = "io.nightfish.lightnovelreader.plugin.linovelib"
         minSdk = 24
         targetSdk = 36
-        versionCode = 24
-        versionName = "1.1.1"
+        versionCode = 25
+        versionName = "1.1.2"
     }
 
     buildFeatures {

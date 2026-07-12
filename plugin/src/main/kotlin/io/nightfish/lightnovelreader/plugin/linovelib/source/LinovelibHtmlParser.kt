@@ -81,6 +81,7 @@ class LinovelibHtmlParser(
         val tagElements = document.select(".tag-small-group .tag-small")
         val bookTagElements = tagElements
             .filterNot { it.hasClass("orange") || it.hasClass("gray") }
+        val relatedTagElements = tagElements.filterNot { it.hasClass("gray") }
         val tags = bookTagElements
             .map { it.text().trim() }
             .filter { it.isNotEmpty() }
@@ -99,7 +100,7 @@ class LinovelibHtmlParser(
         if (author.isNotBlank() && authorUrl.isNotBlank()) {
             relatedTargetCache[LinovelibRelatedSearch.authorDisplayTag(author)] = authorUrl
         }
-        bookTagElements.forEach { element ->
+        relatedTagElements.forEach { element ->
             val tag = element.text().trim()
             val link = element.selectFirst("a[href]") ?: return@forEach
             val target = link.absUrl("href").ifBlank { link.attr("href") }.let(::normalizeUrl)

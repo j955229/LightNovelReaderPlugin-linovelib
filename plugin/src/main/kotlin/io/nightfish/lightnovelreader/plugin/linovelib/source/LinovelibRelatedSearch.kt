@@ -12,7 +12,8 @@ internal object LinovelibRelatedSearch {
 
     fun authorDisplayTag(author: String): String = "$AUTHOR_PREFIX$author"
 
-    fun displayTags(author: String, tags: List<String>): List<String> = buildList {
+    fun displayTags(author: String, tags: List<String>, publishingHouse: String = ""): List<String> = buildList {
+        if (publishingHouse.isNotBlank()) add(publishingHouse)
         if (author.isNotBlank()) add(authorDisplayTag(author))
         addAll(tags.filter(String::isNotBlank))
     }.distinct()
