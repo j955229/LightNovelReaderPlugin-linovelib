@@ -21,4 +21,13 @@ class LinovelibImageProxyTest {
         assertEquals(false, LinovelibImageProxy.isAllowed("https://example.com/private"))
         assertEquals(false, LinovelibImageProxy.isAllowed("http://img3.readpai.com/image.jpg"))
     }
+
+    @Test
+    fun routesAllowedImagesThroughInstalledProviderWithoutDiscovery() {
+        val original = "https://img3.readpai.com/2/2013/235372/256528.jpg"
+
+        assertTrue(LinovelibImageProxy.route(original).startsWith("content://"))
+        assertEquals(original, LinovelibImageProxy.decodeUriString(LinovelibImageProxy.route(original)))
+        assertEquals("https://example.com/image.jpg", LinovelibImageProxy.route("https://example.com/image.jpg"))
+    }
 }

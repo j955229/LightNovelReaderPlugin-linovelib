@@ -1,5 +1,13 @@
 # LightNovelReaderPlugin-linovelib
 
+## v1.0.19
+
+- 修正搜尋結果直接跳轉小說頁時顯示 0 筆的問題，例如關鍵詞「男性禁入」可找到 ID 3768。
+- 修正 EPUB 導出圖片因 Readpai 防盜鏈回傳 HTTP 403 而失敗。
+- 請求等待改為可取消，並避免重複的連線監測拖慢快取。
+- 章節記憶體快取提高至 256 筆並保留 6 小時，同一次 App 執行期間可重用。
+- 快取按鈕取消、通知列取消及刪除 App 持久快取仍屬於 LightNovelReader 本體功能。
+
 為 [LightNovelReader](https://github.com/dmzz-yyhyy/LightNovelReader) 提供 Linovelib 網站資料的第三方插件。
 
 ## 功能

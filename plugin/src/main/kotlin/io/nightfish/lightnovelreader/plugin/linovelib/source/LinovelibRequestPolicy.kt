@@ -2,11 +2,14 @@ package io.nightfish.lightnovelreader.plugin.linovelib.source
 
 internal object LinovelibRequestPolicy {
     const val maxAttempts = 4
-    private const val minimumRequestIntervalMillis = 1_200L
+    const val minimumRequestIntervalMillis = 1_200L
     private const val maximumRetryDelayMillis = 60_000L
 
-    fun requestDelayMillis(lastRequestStartedAtMillis: Long, nowMillis: Long): Long =
-        (lastRequestStartedAtMillis + minimumRequestIntervalMillis - nowMillis).coerceAtLeast(0L)
+    fun requestDelayMillis(
+        lastRequestStartedAtMillis: Long,
+        nowMillis: Long,
+        minimumIntervalMillis: Long = minimumRequestIntervalMillis
+    ): Long = (lastRequestStartedAtMillis + minimumIntervalMillis - nowMillis).coerceAtLeast(0L)
 
     fun retryDelayMillis(statusCode: Int, retryAfter: String?, attempt: Int): Long? {
         val headerDelay = retryAfter

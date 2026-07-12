@@ -10,7 +10,7 @@ on:
       tag:
         description: Existing tag to publish
         required: true
-        default: v1.0.18
+        default: v1.0.19
 
 permissions:
   contents: write
@@ -37,7 +37,7 @@ jobs:
       - name: Upload plugin
         uses: actions/upload-artifact@v4
         with:
-          name: Linovelib-TW-1.0.18
+          name: Linovelib-TW-1.0.19
           path: plugin/build/outputs/apk/debug/*.lnrp
 
       - name: Publish GitHub release
@@ -48,4 +48,4 @@ jobs:
         run: |
           VERSION="${RELEASE_TAG#v}"
           cp plugin/build/outputs/apk/debug/plugin-debug.apk.lnrp "Linovelib-TW-${VERSION}.apk.lnrp"
-          gh release create "$RELEASE_TAG" "Linovelib-TW-${VERSION}.apk.lnrp" --title "Linovelib TW ${VERSION}" --notes "相容 LightNovelReader 1.2.0 與 1.2.1（API 2）。加入 HTTP 429 節流重試、排行榜封面、原生快取與 EPUB 圖片支援；41 項測試全部通過。"
+          gh release create "$RELEASE_TAG" "Linovelib-TW-${VERSION}.apk.lnrp" --title "Linovelib TW ${VERSION}" --notes "相容 LightNovelReader 1.2.0 與 1.2.1（API 2）。修正直接跳轉搜尋、EPUB 圖片 HTTP 403、取消後繼續請求與重複連線監測，並延長章節記憶體快取；完整測試全部通過。"

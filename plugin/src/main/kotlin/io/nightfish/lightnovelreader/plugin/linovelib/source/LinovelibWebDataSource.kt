@@ -21,17 +21,16 @@ import io.nightfish.lightnovelreader.api.web.explore.ExplorePageProvider
 import io.nightfish.lightnovelreader.api.web.search.SearchProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.Connection
 import java.io.IOException
-import kotlin.time.Duration.Companion.seconds
 
 @Suppress("unused")
 @WebDataSource(
@@ -45,16 +44,14 @@ class LinovelibWebDataSource(
     private val diagnostics = LinovelibDiagnostics()
     private val scope = CoroutineScope(Dispatchers.IO)
     private val offlineStateFlow = MutableStateFlow(true)
-    private val requestLock = Any()
+    private val requestCoordinator = LinovelibRequestCoordinator()
     private val sessionCookies = mutableMapOf<String, String>()
-    private var lastRequestStartedAtMillis = 0L
-    private var blockedUntilMillis = 0L
-    private val imageProxyAvailable by lazy {
-        context.packageManager.resolveContentProvider(LinovelibImageProxy.authority, 0) != null
-    }
-
+    private var offlineMonitorJob: Job? = null
     override val permits: Int = 1
-    override val cache: Cache = Cache(maxCountEachType = 64, timeout = 300_000)
+    override val cache: Cache = Cache(
+        maxCountEachType = LinovelibDataSourceConfiguration.cacheEntriesPerType,
+        timeout = LinovelibDataSourceConfiguration.cacheTimeoutMillis
+    )
     override val id: Int = "linovelib_tw".hashCode()
     override val offLine: Boolean get() = offlineStateFlow.value
     override val isOffLineFlow: StateFlow<Boolean> = offlineStateFlow
@@ -71,12 +68,11 @@ class LinovelibWebDataSource(
         "Accept" to "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
     )
 
+    @Synchronized
     override fun onLoad() {
-        scope.launch {
-            while (currentCoroutineContext().isActive) {
-                offlineStateFlow.value = isOffLine()
-                delay(if (offLine) 5.seconds else 60.seconds)
-            }
+        if (!LinovelibDataSourceConfiguration.shouldStartOfflineMonitor(offlineMonitorJob?.isActive == true)) return
+        offlineMonitorJob = scope.launch {
+            offlineStateFlow.value = isOffLine()
         }
     }
 
@@ -130,14 +126,14 @@ class LinovelibWebDataSource(
         }
     }
 
-    private fun getHtml(url: String): String = executeRequest(
+    private suspend fun getHtml(url: String): String = executeRequest(
         url = url,
         userAgent = USER_AGENT,
         referrer = LinovelibUrls.HOST,
         acceptLanguage = "zh-TW,zh;q=0.9,en;q=0.7"
     ).body()
 
-    private fun getContentHtml(url: String): String = executeRequest(
+    private suspend fun getContentHtml(url: String): String = executeRequest(
         url = url,
         userAgent = CONTENT_USER_AGENT,
         referrer = "${LinovelibUrls.CONTENT_HOST}/",
@@ -146,7 +142,7 @@ class LinovelibWebDataSource(
         cacheControl = true
     ).body()
 
-    private fun getSearchHtml(keyword: String): String {
+    private suspend fun getSearchHtml(keyword: String): LinovelibSearchResponse {
         val searchKeyword = LinovelibChineseConverter.toSimplified(keyword)
         val guardJs = executeRequest(
             url = "${LinovelibUrls.CONTENT_HOST}/search.html?search_guard=js",
@@ -187,7 +183,7 @@ class LinovelibWebDataSource(
         )
 
         val encodedKeyword = java.net.URLEncoder.encode(searchKeyword, "UTF-8")
-        return executeRequest(
+        val response = executeRequest(
             url = "${LinovelibUrls.CONTENT_HOST}/search.html?searchkey=$encodedKeyword",
             userAgent = CONTENT_USER_AGENT,
             referrer = "${LinovelibUrls.CONTENT_HOST}/",
@@ -195,10 +191,14 @@ class LinovelibWebDataSource(
             cookies = LinovelibSearchGuard.ticketCookies(ticketToken),
             cacheControl = true,
             includeSessionCookies = false
-        ).body()
+        )
+        return LinovelibSearchResponse(
+            finalUrl = response.url().toString(),
+            html = response.body()
+        )
     }
 
-    private fun executeRequest(
+    private suspend fun executeRequest(
         url: String,
         userAgent: String,
         referrer: String,
@@ -228,7 +228,7 @@ class LinovelibWebDataSource(
                         throw throwable
                     }
                     val retryDelay = LinovelibRequestPolicy.networkRetryDelayMillis(attempt)
-                    scheduleCooldown(retryDelay)
+                    requestCoordinator.scheduleCooldown(retryDelay)
                     diagnostics.info(
                         "HTTP_RETRY",
                         mapOf(
@@ -265,7 +265,7 @@ class LinovelibWebDataSource(
                 if (retryDelay == null || attempt == LinovelibRequestPolicy.maxAttempts - 1) {
                     throw IOException("HTTP ${response.statusCode()} for ${response.url()}")
                 }
-                scheduleCooldown(retryDelay)
+                requestCoordinator.scheduleCooldown(retryDelay)
                 diagnostics.info(
                     "HTTP_RETRY",
                     mapOf(
@@ -291,7 +291,7 @@ class LinovelibWebDataSource(
         }
     }
 
-    private fun executeSingleRequest(
+    private suspend fun executeSingleRequest(
         url: String,
         userAgent: String,
         referrer: String,
@@ -299,8 +299,7 @@ class LinovelibWebDataSource(
         cookies: Map<String, String>,
         cacheControl: Boolean,
         includeSessionCookies: Boolean
-    ): Connection.Response = synchronized(requestLock) {
-        waitForRequestSlot()
+    ): Connection.Response = requestCoordinator.execute {
         val requestCookies = if (includeSessionCookies) {
             sessionCookies.toMutableMap().apply { putAll(cookies) }
         } else {
@@ -317,26 +316,14 @@ class LinovelibWebDataSource(
             .acceptLinovelibContentTypes()
             .timeout(12_000)
         if (cacheControl) connection.header("Cache-Control", "no-cache")
-        lastRequestStartedAtMillis = System.currentTimeMillis()
-        connection.execute().also { response ->
+        val response = withContext(Dispatchers.IO) { connection.execute() }
+        currentCoroutineContext().ensureActive()
+        response.also {
             if (includeSessionCookies) sessionCookies.putAll(response.cookies())
         }
     }
 
-    private fun waitForRequestSlot() {
-        val now = System.currentTimeMillis()
-        val intervalDelay = LinovelibRequestPolicy.requestDelayMillis(lastRequestStartedAtMillis, now)
-        val cooldownDelay = (blockedUntilMillis - now).coerceAtLeast(0L)
-        val waitMillis = maxOf(intervalDelay, cooldownDelay)
-        if (waitMillis > 0L) Thread.sleep(waitMillis)
-        if (blockedUntilMillis <= System.currentTimeMillis()) blockedUntilMillis = 0L
-    }
-
-    private fun scheduleCooldown(delayMillis: Long) = synchronized(requestLock) {
-        blockedUntilMillis = maxOf(blockedUntilMillis, System.currentTimeMillis() + delayMillis)
-    }
-
-    private fun getChapterContentPages(chapterId: String, bookId: String): ParsedChapterContent {
+    private suspend fun getChapterContentPages(chapterId: String, bookId: String): ParsedChapterContent {
         val websiteChapterId = LinovelibChapterIds.forWebsite(chapterId)
         val pages = mutableListOf<ParsedChapterContent>()
         val visitedUrls = mutableSetOf<String>()
@@ -530,8 +517,7 @@ class LinovelibWebDataSource(
         )
     }
 
-    private fun imageUriString(url: String): String =
-        if (imageProxyAvailable) LinovelibImageProxy.uriString(url) else url
+    private fun imageUriString(url: String): String = LinovelibImageProxy.route(url)
 
     private companion object {
         const val TAG = "LinovelibWebDataSource"

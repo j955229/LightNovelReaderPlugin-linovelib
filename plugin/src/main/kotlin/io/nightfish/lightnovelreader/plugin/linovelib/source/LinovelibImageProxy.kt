@@ -14,6 +14,9 @@ internal object LinovelibImageProxy {
         return "content://$authority/image/$encoded"
     }
 
+    fun route(originalUrl: String): String =
+        if (isAllowed(originalUrl)) uriString(originalUrl) else originalUrl
+
     fun decodeUriString(proxyUri: String): String {
         val encoded = URI.create(proxyUri).path.substringAfterLast('/')
         return Base64.getUrlDecoder().decode(encoded).toString(Charsets.UTF_8)

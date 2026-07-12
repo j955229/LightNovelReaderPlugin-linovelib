@@ -10,9 +10,9 @@ import io.nightfish.lightnovelreader.api.web.search.SearchType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
-class LinovelibSearchProvider(
+internal class LinovelibSearchProvider(
     private val htmlLoader: suspend (String) -> String,
-    private val searchHtmlLoader: suspend (String) -> String,
+    private val searchHtmlLoader: suspend (String) -> LinovelibSearchResponse,
     private val parser: LinovelibHtmlParser,
     private val diagnostics: LinovelibDiagnostics
 ) : SearchProvider {
@@ -54,18 +54,41 @@ class LinovelibSearchProvider(
             return@flow
         }
 
-        val searchRow = runCatching {
-            parser.parseListRow("Search", searchHtmlLoader(query))
+        val searchResponse = runCatching {
+            searchHtmlLoader(query)
         }.onFailure {
             it.rethrowIfCancellation()
             diagnostics.error("SEARCH_REQUEST_ERROR", it, mapOf("keyword" to query))
         }.getOrNull()
 
-        if (searchRow == null) {
+        if (searchResponse == null) {
             emit(SearchResult.Error("Failed to request Linovelib search data"))
             emit(SearchResult.End())
             return@flow
         }
+
+        val redirectedBookId = searchResponse.directBookId(parser)
+        if (redirectedBookId != null) {
+            val book = runCatching {
+                parser.parseBookInformation(redirectedBookId, searchResponse.html).toBookInformation()
+            }.onFailure {
+                it.rethrowIfCancellation()
+                diagnostics.error("SEARCH_REDIRECT_ERROR", it, mapOf("bookId" to redirectedBookId))
+            }.getOrNull()
+            if (book != null && !book.isEmpty()) {
+                emit(SearchResult.MultipleBook(book))
+            } else {
+                emit(SearchResult.SingleBook(redirectedBookId))
+            }
+            diagnostics.info(
+                "SEARCH_DONE",
+                mapOf("mode" to "redirect", "results" to 1, "bookId" to redirectedBookId)
+            )
+            emit(SearchResult.End())
+            return@flow
+        }
+
+        val searchRow = parser.parseListRow("Search", searchResponse.html)
 
         val books = searchRow.books.distinctBy { it.id }.take(MAX_SEARCH_RESULTS)
         diagnostics.info(
