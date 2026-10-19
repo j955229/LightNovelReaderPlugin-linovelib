@@ -80,8 +80,8 @@ jobs:
           ])
           
           edit("lib/pages.dart", [
-              ("                       margin: prefs.bindingMargin,\n",
-               "                       margin: prefs.bindingMargin,\n                       spreadMode: prefs.spreadMode,\n"),
+              ("margin: prefs.bindingMargin,\n",
+               "margin: prefs.bindingMargin,\n                       spreadMode: prefs.spreadMode,\n"),
           ])
           
           edit("pubspec.yaml", [("version: 0.4.1+88","version: 0.4.2+90")])
