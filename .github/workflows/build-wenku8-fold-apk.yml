@@ -1,0 +1,193 @@
+name: Build Wenku8 Fold Reader APK
+on:
+  push:
+    branches: ['artifact/wenku8-fold-reader-20261020']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.5'
+          channel: stable
+          cache: true
+      - name: Download Wenku8 source
+        run: git clone --depth 1 --branch v0.4.1 https://github.com/mikufoxxx/Wenku8_Flutter.git wenku8
+      - name: Add foldable reader layout selector
+        working-directory: wenku8
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          
+          def edit(name, pairs):
+              p=Path(name)
+              s=p.read_text()
+              for old, new in pairs:
+                  count=s.count(old)
+                  if count != 1:
+                      raise RuntimeError(f"{name}: expected one occurrence, got {count}, of {old[:90]!r}")
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+          
+          edit("lib/reader_preferences.dart", [
+              ("enum ReaderTapLayout {",
+               "enum ReaderSpreadMode {\n  auto('自动'),\n  single('单页'),\n  doublePage('双页');\n\n  const ReaderSpreadMode(this.label);\n  final String label;\n}\n\nenum ReaderTapLayout {"),
+              ("    this.mode = ReaderMode.scroll,", "    this.mode = ReaderMode.scroll,\n    this.spreadMode = ReaderSpreadMode.auto,"),
+              ("  final ReaderMode mode;", "  final ReaderMode mode;\n  final ReaderSpreadMode spreadMode;"),
+              ("    'mode': mode.name,", "    'mode': mode.name,\n    'spreadMode': spreadMode.name,"),
+              ("      mode: ReaderMode.values.byName(json['mode'] ?? 'scroll'),",
+               "      mode: ReaderMode.values.byName(json['mode'] ?? 'scroll'),\n      spreadMode: ReaderSpreadMode.values.byName(json['spreadMode'] ?? 'auto'),"),
+              ("    ReaderMode? mode,", "    ReaderMode? mode,\n    ReaderSpreadMode? spreadMode,"),
+              ("    mode: mode ?? this.mode,", "    mode: mode ?? this.mode,\n    spreadMode: spreadMode ?? this.spreadMode,"),
+          ])
+          
+          edit("lib/reader_book_layout.dart", [
+              ("import 'package:flutter/semantics.dart';",
+               "import 'package:flutter/semantics.dart';\nimport 'reader_preferences.dart';"),
+              ("    required double margin,\n    List<DisplayFeature> features",
+               "    required double margin,\n    ReaderSpreadMode spreadMode = ReaderSpreadMode.auto,\n    List<DisplayFeature> features"),
+              ("    if (area.width + margin * 2 >= 720 && area.height >= 220 && width >= 300) {",
+               "    if (spreadMode == ReaderSpreadMode.single) {\n      return ReaderBookLayout._(viewport, [area], null);\n    }\n    final forcedDouble = spreadMode == ReaderSpreadMode.doublePage;\n    if (area.height >= 220 &&\n        (forcedDouble\n            ? area.width >= 280 && width >= 110\n            : area.width + margin * 2 >= 720 && width >= 300)) {"),
+              ("    if (hinge != null) {\n      area = leftEnd - area.left >= area.right - rightStart",
+               "    if (hinge != null &&\n        hinge.width > 16 &&\n        features.any((feature) =>\n            feature.state == DisplayFeatureState.postureHalfOpened)) {\n      area = leftEnd - area.left >= area.right - rightStart"),
+          ])
+          
+          edit("lib/reader_paged_view.dart", [
+              ("    this.margin = 26,\n  });\n  final String title;",
+               "    this.margin = 26,\n    this.spreadMode = ReaderSpreadMode.auto,\n  });\n  final String title;"),
+              ("  final double margin;\n  @override\n  Widget build",
+               "  final double margin;\n  final ReaderSpreadMode spreadMode;\n  @override\n  Widget build"),
+              ("                margin: margin,\n                features: MediaQuery.displayFeaturesOf(context),",
+               "                margin: margin,\n                spreadMode: spreadMode,\n                features: MediaQuery.displayFeaturesOf(context),"),
+              ("                margin: widget.preferences.bindingMargin,\n                features: MediaQuery.displayFeaturesOf(context),",
+               "                margin: widget.preferences.bindingMargin,\n                spreadMode: widget.preferences.spreadMode,\n                features: MediaQuery.displayFeaturesOf(context),"),
+          ])
+          
+          edit("lib/reader_tools.dart", [
+              ("                AnimatedOptionSection(\n                  expanded: widget.state.readerPreferences.mode.paginated,\n                  child: ReaderChoicePicker<ReaderPageEffect>(",
+               "                AnimatedOptionSection(\n                  expanded: widget.state.readerPreferences.mode.paginated,\n                  child: ReaderChoicePicker<ReaderSpreadMode>(\n                    name: 'reader-spread-mode',\n                    label: '页面布局',\n                    value: widget.state.readerPreferences.spreadMode,\n                    options: {\n                      for (final mode in ReaderSpreadMode.values) mode: mode.label,\n                    },\n                    onChanged: (mode) => _preferences(\n                      widget.state.readerPreferences.copyWith(spreadMode: mode),\n                    ),\n                  ),\n                ),\n                AnimatedOptionSection(\n                  expanded: widget.state.readerPreferences.mode.paginated,\n                  child: ReaderChoicePicker<ReaderPageEffect>("),
+          ])
+          
+          edit("lib/pages.dart", [
+              ("                       margin: prefs.bindingMargin,\n",
+               "                       margin: prefs.bindingMargin,\n                       spreadMode: prefs.spreadMode,\n"),
+          ])
+          
+          edit("pubspec.yaml", [("version: 0.4.1+88","version: 0.4.2+90")])
+          
+          edit("android/app/build.gradle.kts", [
+              ("        release {\n            proguardFile(file(\"document-import.pro\"))",
+               "        release {\n            applicationIdSuffix = \".fold_reader\"\n            manifestPlaceholders[\"wenkuAppLabel\"] = \"轻小说文库·折叠屏\"\n            proguardFile(file(\"document-import.pro\"))"),
+          ])
+          
+          Path("test/reader_fold_layout_override_test.dart").write_text("""import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType;
+          import 'package:flutter/material.dart';
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:wenku8_flutter/reader_book_layout.dart';
+          import 'package:wenku8_flutter/reader_preferences.dart';
+          
+          void main() {
+            const crease = DisplayFeature(
+              bounds: Rect.fromLTWH(312, 0, 0, 900),
+              type: DisplayFeatureType.fold,
+              state: DisplayFeatureState.postureFlat,
+            );
+          
+            test('unfolded portrait supports single and double pages', () {
+              final single = ReaderBookLayout.resolve(
+                viewport: const Size(624, 820),
+                margin: 26,
+                features: const [crease],
+                spreadMode: ReaderSpreadMode.single,
+              );
+              expect(single.count, 1);
+              expect(single.pageSize.width, 624);
+          
+              final doublePage = ReaderBookLayout.resolve(
+                viewport: const Size(624, 820),
+                margin: 26,
+                features: const [crease],
+                spreadMode: ReaderSpreadMode.doublePage,
+              );
+              expect(doublePage.count, 2);
+              expect(doublePage.pages.first.width, greaterThan(200));
+              expect(doublePage.pages.last.width, greaterThan(200));
+          
+              final automatic = ReaderBookLayout.resolve(
+                viewport: const Size(624, 820),
+                margin: 26,
+                features: const [crease],
+              );
+              expect(automatic.count, 1);
+              expect(automatic.pageSize.width, 624);
+            });
+          
+            test('preference persists and defaults to auto', () {
+              const p = ReaderPreferences();
+              expect(p.spreadMode, ReaderSpreadMode.auto);
+              final changed = p.copyWith(spreadMode: ReaderSpreadMode.doublePage);
+              expect(ReaderPreferences.fromJson(changed.toJson()).spreadMode,
+                  ReaderSpreadMode.doublePage);
+            });
+          }
+          """)
+          print("Patched reader layout / preferences / UI and added tests.")
+          
+          PY
+      - name: Format and install dependencies
+        working-directory: wenku8
+        run: |
+          dart format lib/reader_preferences.dart lib/reader_book_layout.dart lib/reader_paged_view.dart lib/reader_tools.dart lib/pages.dart test/reader_fold_layout_override_test.dart
+          flutter pub get
+      - name: Run foldable reader tests
+        working-directory: wenku8
+        run: flutter test test/reader_fold_layout_override_test.dart test/reader_book_layout_test.dart
+      - name: Restore official online runtime
+        working-directory: wenku8
+        shell: bash
+        run: |
+          curl --fail --location --retry 5 --retry-delay 3 'https://github.com/mikufoxxx/Wenku8_Flutter/releases/download/v0.4.1/wenku8-0.4.1-arm64-v8a.apk' --output /tmp/wenku8-official.apk
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib
+          with ZipFile('/tmp/wenku8-official.apk') as apk:
+              original = apk.read('lib/arm64-v8a/libcpp.so')
+          dest=Path('android/app/src/main/jniLibs/arm64-v8a/libcpp.so')
+          dest.parent.mkdir(parents=True, exist_ok=True)
+          dest.write_bytes(original)
+          print('Official API runtime SHA256:', hashlib.sha256(original).hexdigest())
+          PY
+      - name: Build installable ARM64 APK
+        working-directory: wenku8
+        run: |
+          flutter build apk --release --target-platform android-arm64 --dart-define=UPDATE_REPOSITORY=mikufoxxx/Wenku8_Flutter
+          python3 tools/verify_apk_runtime.py build/app/outputs/flutter-apk/app-release.apk --abi arm64-v8a
+      - name: Store APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wenku8-Fold-0.4.2-ARM64
+          path: wenku8/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish direct APK to isolated artifact branch
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp wenku8/build/app/outputs/flutter-apk/app-release.apk artifacts/Wenku8-Fold-0.4.2-arm64.apk
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git add -f artifacts/Wenku8-Fold-0.4.2-arm64.apk
+          git commit -m 'Build foldable-reader ARM64 installable APK'
+          git push origin HEAD
