@@ -1,0 +1,30 @@
+name: Publish Wenku8 Dual Source APK
+on:
+  push:
+    branches: ['artifact/wenku8-linovelib-20261020']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Retrieve verified ARM64 APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/dual-source-apk artifacts
+          gh run download 39359463034 --repo "${{ github.repository }}" --name Wenku8-DualSource-0.4.3-ARM64 --dir /tmp/dual-source-apk
+          cp /tmp/dual-source-apk/app-release.apk artifacts/Wenku8-DualSource-0.4.3-arm64.apk
+      - name: Commit downloadable installation package
+        run: |
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git add -f artifacts/Wenku8-DualSource-0.4.3-arm64.apk
+          git commit -m 'Publish installable dual-source ARM64 APK'
+          git fetch origin "${GITHUB_REF_NAME}"
+          git reset --soft "origin/${GITHUB_REF_NAME}"
+          git push origin HEAD
