@@ -151,6 +151,19 @@ sub=replace(sub,
    '      if (WenkuFeaturesScope.maybeOf(context) case final features?)\n'
    '        if (sources?.selected != BookSource.linovelib)')
 sub=replace(sub,
+   "      GlassIconButton(\n        icon: CupertinoIcons.search,\n        label: '搜索',",
+   "      if (sources != null)\n"
+   "        GlassIconButton(\n"
+   "          icon: CupertinoIcons.arrow_left_arrow_right,\n"
+   "          label: '切換書源',\n"
+   "          onPressed: () => onChooseSource?.call(\n"
+   "            sources!.selected == BookSource.wenku8\n"
+   "                ? BookSource.linovelib : BookSource.wenku8,\n"
+   "          ),\n"
+   "        ),\n"
+   "      GlassIconButton(\n        icon: CupertinoIcons.search,\n        label: '搜索',")
+
+sub=replace(sub,
    '  Widget build(BuildContext context) => feed == null\n'
    '      ? _buildContent(context, books)\n'
    '      : ActiveListenableBuilder(\n'
