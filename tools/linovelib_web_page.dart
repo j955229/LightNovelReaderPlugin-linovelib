@@ -14,10 +14,10 @@ class LinovelibWebPage extends StatefulWidget {
   });
 
   static String reviews(int id) =>
-      'https://tw.linovelib.com/reviews_\${id - 1200000000}_1.html';
+      'https://tw.linovelib.com/reviews_${id - 1200000000}_1.html';
   static String login() => 'https://tw.linovelib.com/login.php';
   static String chapter(int id, int cid) =>
-      'https://tw.linovelib.com/novel/\${id - 1200000000}/$cid.html';
+      'https://tw.linovelib.com/novel/${id - 1200000000}/$cid.html';
 
   final String title;
   final String url;
@@ -68,7 +68,7 @@ class _LinovelibWebPageState extends State<LinovelibWebPage> {
           if (error.isForMainFrame == true && mounted) {
             setState(() {
               loading = false;
-              failure = '页面载入失败：\${error.description}';
+              failure = '页面载入失败：${error.description}';
             });
           }
         },
