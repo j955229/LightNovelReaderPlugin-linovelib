@@ -102,7 +102,7 @@ class LinovelibRepository extends NovelRepository {
     request.headers.set(HttpHeaders.userAgentHeader,
       'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36');
     request.headers.set('Accept-Language', 'zh-TW,zh;q=0.9');
-    request.headers.set('Referer', site + '/');
+    request.headers.set('Referer', (url.host == 'www.bilinovel.com' ? chapterSite : site) + '/');
     final response = await request.close().timeout(const Duration(seconds: 25));
     if (response.statusCode != 200) {
       await response.drain<void>();
