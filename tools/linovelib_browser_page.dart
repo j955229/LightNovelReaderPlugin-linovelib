@@ -48,7 +48,7 @@ class _LinovelibBrowserPageState extends State<LinovelibBrowserPage> {
           if (mounted) setState(() => loading = false);
         },
         onWebResourceError: (failure) {
-          if (!failure.isForMainFrame) return;
+          if (failure.isForMainFrame != true) return;
           if (mounted) setState(() {
             loading = false;
             error = '網頁載入失敗：' + failure.description;
