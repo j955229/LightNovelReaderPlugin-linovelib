@@ -27,7 +27,7 @@ start='  @override\n  Future<NovelPage> searchPage(String query, {int page = 1, 
 end='  @override\n  Future<NovelPage> searchFilteredPage('
 path=Path('lib/linovelib_repository.dart')
 s=path.read_text()
-a=s.index(start)
+a=s.index(start,s.index('class LinovelibRepository extends NovelRepository'))
 b=s.index(end,a)
 s=s[:a]+"""  @override
   Future<NovelPage> searchPage(String query, {
@@ -69,7 +69,7 @@ path.write_text(s)
 start='  @override\n  Future<NovelPage> searchFilteredPage('
 p=Path('lib/linovelib_repository.dart')
 s=p.read_text()
-a=s.index(start)
+a=s.index(start,s.index('class LinovelibRepository extends NovelRepository'))
 # this is last method in class
 s=s[:a]+"""  @override
   Future<NovelPage> searchFilteredPage(String query, {
