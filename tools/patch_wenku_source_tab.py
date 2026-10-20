@@ -40,7 +40,7 @@ change("lib/glass_dock.dart",
     "items.length >= 2 && items.length <= 5")
 p=Path("lib/glass_dock.dart")
 s=p.read_text()
-assert s.count("184 / 3") == 8, s.count("184 / 3")
+assert s.count("184 / 3") == 7, s.count("184 / 3")
 p.write_text(s.replace("184 / 3","52.0"))
 
 change("lib/pages.dart",
