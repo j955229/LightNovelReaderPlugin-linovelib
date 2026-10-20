@@ -16,6 +16,14 @@ class LinovelibCover {
   static Uint8List? peek(String? url) =>
       url == null ? null : _cache[url];
 
+  static void seed(String url, Uint8List bytes) {
+    final old = _cache.remove(url);
+    if (old != null) _byteCount -= old.length;
+    _cache[url] = bytes;
+    _byteCount += bytes.length;
+  }
+
+
   static Future<Uint8List> bytes(String url) {
     if (_cache[url] case final found?) return Future.value(found);
     return _pending.putIfAbsent(url, () async {
