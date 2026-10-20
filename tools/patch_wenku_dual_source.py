@@ -148,8 +148,8 @@ sub=replace(sub,
    "        ),")
 sub=replace(sub,
    '      if (WenkuFeaturesScope.maybeOf(context) case final features?)',
-   '      if (sources?.selected != BookSource.linovelib &&\n'
-   '          WenkuFeaturesScope.maybeOf(context) case final features?)')
+   '      if (WenkuFeaturesScope.maybeOf(context) case final features?)\n'
+   '        if (sources?.selected != BookSource.linovelib)')
 sub=replace(sub,
    '  Widget build(BuildContext context) => feed == null\n'
    '      ? _buildContent(context, books)\n'
