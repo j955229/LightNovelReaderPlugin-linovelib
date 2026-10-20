@@ -154,7 +154,7 @@ sub=replace(sub,
    "      GlassIconButton(\n        icon: CupertinoIcons.search,\n        label: '搜索',",
    "      if (sources != null)\n"
    "        GlassIconButton(\n"
-   "          icon: CupertinoIcons.arrow_left_arrow_right,\n"
+   "          icon: CupertinoIcons.arrow_left_right,\n"
    "          label: '切換書源',\n"
    "          onPressed: () => onChooseSource?.call(\n"
    "            sources!.selected == BookSource.wenku8\n"
