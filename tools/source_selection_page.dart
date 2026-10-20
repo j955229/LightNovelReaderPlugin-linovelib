@@ -9,15 +9,20 @@ import 'linovelib_repository.dart';
 class SourceSelectionPage extends StatelessWidget {
   const SourceSelectionPage({
     super.key,
-    required this.selected,
+    required this.sources,
     required this.onChoose,
   });
 
-  final BookSource selected;
+  final DualSourceRepository sources;
   final ValueChanged<BookSource> onChoose;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<BookSource>(
+    valueListenable: sources.changes,
+    builder: (context, selected, _) => _sourceList(context, selected),
+  );
+
+  Widget _sourceList(BuildContext context, BookSource selected) {
     final scheme = Theme.of(context).colorScheme;
     return CustomScrollView(
       key: const PageStorageKey('source-tab'),
