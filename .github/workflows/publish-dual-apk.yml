@@ -24,7 +24,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git config user.name 'github-actions[bot]'
           git add -f artifacts/Wenku8-DualSource-0.4.3-arm64.apk
-          git commit -m 'Publish installable dual-source ARM64 APK'
           git fetch origin "${GITHUB_REF_NAME}"
           git reset --soft "origin/${GITHUB_REF_NAME}"
+          git commit -m 'Publish installable dual-source ARM64 APK'
           git push origin HEAD
