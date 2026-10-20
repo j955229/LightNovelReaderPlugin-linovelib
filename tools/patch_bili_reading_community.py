@@ -224,10 +224,10 @@ patch("lib/my_page.dart",
       "                        ? null\n"
       "                        : () => pushNovelPage<void>(")
 patch("lib/my_page.dart",
-      "                               child: account?.authenticated == true",
-      "                               child: !isBili && account?.authenticated == true")
+      "                          child: account?.authenticated == true",
+      "                          child: !isBili && account?.authenticated == true")
 patch("lib/my_page.dart",
-      "                                 account?.authenticated == true\n"
+      "                                account?.authenticated == true\n"
       "                                     ? profile?.displayName ?? '文库账号'\n"
       "                                     : '登录文库账号',",
       "                                 isBili ? '登入嗶哩輕小說'\n"
@@ -235,7 +235,7 @@ patch("lib/my_page.dart",
       "                                       ? profile?.displayName ?? '文库账号'\n"
       "                                       : '登录文库账号',")
 patch("lib/my_page.dart",
-      "                                 account?.authenticated == true\n"
+      "                                account?.authenticated == true\n"
       "                                     ? profile == null",
       "                                 isBili ? '嗶哩輕小說帳號 · 網站登入與書評互動'\n"
       "                                   : account?.authenticated == true\n"
