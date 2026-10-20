@@ -47,7 +47,7 @@ s=s[:a]+"""  @override
       paragraphs.addAll(decoded.blocks);
       incomplete = incomplete || decoded.hasFailureMarker;
       final next = fullUrl(decoded.nextUrl, chapterSite);
-      final candidate = RegExp(r'/novel/\\\\d+/(\\\\d+)(?:_\\\\d+)?\\\\.html')
+      final candidate = RegExp(r'/novel/\\d+/(\\d+)(?:_\\d+)?\\.html')
           .firstMatch(next);
       if (candidate == null || int.tryParse(candidate.group(1)!) != chapter.id ||
           !next.startsWith(chapterSite + '/novel/')) {
@@ -65,7 +65,7 @@ s=s[:a]+"""  @override
     if (paragraphs.join().length < 20) {
       throw const FormatException('小說正文為空，請使用右上角「網頁閱讀」');
     }
-    return paragraphs.join('\\\\n\\\\n');
+    return paragraphs.join('\\n\\n');
   }
 """+s[b:]
 p.write_text(s)
