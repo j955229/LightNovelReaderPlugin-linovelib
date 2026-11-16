@@ -54,15 +54,22 @@ internal class LinovelibSearchProvider(
             return@flow
         }
 
-        val searchResponse = runCatching {
+        val searchResult = runCatching {
             searchHtmlLoader(query)
         }.onFailure {
             it.rethrowIfCancellation()
             diagnostics.error("SEARCH_REQUEST_ERROR", it, mapOf("keyword" to query))
-        }.getOrNull()
+        }
+        val searchResponse = searchResult.getOrNull()
 
         if (searchResponse == null) {
-            emit(SearchResult.Error("Failed to request Linovelib search data"))
+            val failure = searchResult.exceptionOrNull()
+            emit(
+                SearchResult.Error(
+                    (failure as? LinovelibSearchException)?.message
+                        ?: "Failed to request Linovelib search data"
+                )
+            )
             emit(SearchResult.End())
             return@flow
         }
@@ -94,7 +101,7 @@ internal class LinovelibSearchProvider(
         diagnostics.info(
             "SEARCH_SOURCE",
             linkedMapOf(
-                "source" to "guarded-search",
+                "source" to "captcha-search",
                 "keyword" to query,
                 "books" to books.size
             )

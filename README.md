@@ -4,14 +4,14 @@
 
 ## 下載
 
-[下載 Linovelib TW 1.1.2](https://github.com/j955229/LightNovelReaderPlugin-linovelib/releases/download/v1.1.2/Linovelib-TW-1.1.2.apk.lnrp)
+[下載 Linovelib TW 1.1.3](https://github.com/j955229/LightNovelReaderPlugin-linovelib/releases/download/v1.1.3/Linovelib-TW-1.1.3.apk.lnrp)
 
-支援 LightNovelReader `1.2.0`、`1.2.1 alpha`，外掛 API 版本為 `2`。
+支援 LightNovelReader `1.2.0`～`1.2.4`，外掛 API 版本為 `2`（LightNovelReader 1.3 開發版改用 API 4，目前不相容）。
 
 ## 功能
 
 - 探索、排行榜與完本頁面
-- 書名、作品 ID、作者與標籤搜尋
+- 書名、作品 ID、作者與標籤搜尋（網站要求時會跳出驗證碼視窗，通過後 30 分鐘內免驗證）
 - 完整載入多頁章節
 - 章節插圖、離線快取與 EPUB 導出
 - 點擊作品標籤搜尋相關小說

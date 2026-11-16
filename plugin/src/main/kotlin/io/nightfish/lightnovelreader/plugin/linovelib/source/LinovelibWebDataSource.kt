@@ -48,6 +48,8 @@ class LinovelibWebDataSource(
     private val offlineStateFlow = MutableStateFlow(true)
     private val requestCoordinator = LinovelibRequestCoordinator()
     private val sessionCookies = mutableMapOf<String, String>()
+    private val searchCookies = mutableMapOf<String, String>()
+    private val cookieLock = Any()
     private var offlineMonitorJob: Job? = null
     override val permits: Int = 1
     override val cache: Cache = Cache(
@@ -79,6 +81,10 @@ class LinovelibWebDataSource(
         "Referer" to LinovelibUrls.CONTENT_HOST,
         "Accept" to "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
     )
+
+    init {
+        LinovelibActivityTracker.install(context)
+    }
 
     @Synchronized
     override fun onLoad() {
@@ -164,58 +170,76 @@ class LinovelibWebDataSource(
 
     private suspend fun getSearchHtml(keyword: String): LinovelibSearchResponse {
         val searchKeyword = LinovelibChineseConverter.toSimplified(keyword)
-        val guardJs = executeRequest(
-            url = "${LinovelibUrls.CONTENT_HOST}/search.html?search_guard=js",
-            userAgent = CONTENT_USER_AGENT,
-            referrer = "${LinovelibUrls.CONTENT_HOST}/",
-            acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
-            cacheControl = true,
-            includeSessionCookies = false
-        )
-        val jsToken = LinovelibSearchGuard.extractCookieValue(guardJs.body(), "jieqiSearchJs")
-        require(jsToken.isNotEmpty()) { "Missing jieqiSearchJs search guard cookie" }
-
-        val guardCss = executeRequest(
-            url = "${LinovelibUrls.CONTENT_HOST}/search.html?search_guard=css",
-            userAgent = CONTENT_USER_AGENT,
-            referrer = "${LinovelibUrls.CONTENT_HOST}/",
-            acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
-            cacheControl = true,
-            includeSessionCookies = false
-        )
-        val cssToken = guardCss.cookies()["jieqiSearchCss"].orEmpty()
-        require(cssToken.isNotEmpty()) { "Missing jieqiSearchCss search guard cookie" }
-
-        val redeem = executeRequest(
-            url = "${LinovelibUrls.CONTENT_HOST}/search.html?search_guard=redeem&r=${System.currentTimeMillis()}",
-            userAgent = CONTENT_USER_AGENT,
-            referrer = "${LinovelibUrls.CONTENT_HOST}/",
-            acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
-            cookies = LinovelibSearchGuard.guardCookies(jsToken, cssToken),
-            cacheControl = true,
-            includeSessionCookies = false
-        )
-        val ticketToken = redeem.cookies()["jieqiSearchTicket"].orEmpty()
-        require(ticketToken.isNotEmpty()) { "Missing jieqiSearchTicket search cookie" }
-        diagnostics.info(
-            "SEARCH_GUARD_OK",
-            mapOf("keyword" to keyword, "convertedKeyword" to searchKeyword)
-        )
-
         val encodedKeyword = java.net.URLEncoder.encode(searchKeyword, "UTF-8")
-        val response = executeRequest(
-            url = "${LinovelibUrls.CONTENT_HOST}/search.html?searchkey=$encodedKeyword",
-            userAgent = CONTENT_USER_AGENT,
-            referrer = "${LinovelibUrls.CONTENT_HOST}/",
-            acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
-            cookies = LinovelibSearchGuard.ticketCookies(ticketToken),
-            cacheControl = true,
-            includeSessionCookies = false
+        val searchUrl = "${LinovelibUrls.CONTENT_HOST}/search.html?searchkey=$encodedKeyword"
+        synchronized(cookieLock) { searchCookies.putIfAbsent("night", "0") }
+        var response = executeSearchRequest(searchUrl)
+        var challenge = LinovelibSearchCaptcha.parse(response.body(), response.url().toString())
+        var errorMessage: String? = null
+        var attempts = 0
+        while (challenge != null) {
+            if (attempts >= MAX_CAPTCHA_ATTEMPTS) {
+                throw LinovelibSearchException("驗證碼錯誤次數過多，請稍後再搜尋")
+            }
+            attempts++
+            diagnostics.info(
+                "SEARCH_CAPTCHA_REQUIRED",
+                mapOf("keyword" to keyword, "attempt" to attempts, "challenge" to challenge.challenge)
+            )
+            val currentChallenge = challenge
+            val code = LinovelibCaptchaPrompt.requestCode(
+                context = context,
+                keyword = keyword,
+                errorMessage = errorMessage,
+                loadImage = { refresh -> loadCaptchaImage(currentChallenge, refresh) }
+            ) ?: throw LinovelibSearchException("已取消搜尋驗證")
+            response = executeSearchRequest(
+                url = currentChallenge.actionUrl,
+                method = Connection.Method.POST,
+                data = currentChallenge.formFields + ("search_code" to code)
+            )
+            challenge = LinovelibSearchCaptcha.parse(response.body(), response.url().toString())
+            errorMessage = if (challenge != null) "驗證碼錯誤，請重新輸入" else null
+        }
+        diagnostics.info(
+            "SEARCH_OK",
+            mapOf("keyword" to keyword, "convertedKeyword" to searchKeyword, "captchaAttempts" to attempts)
         )
         return LinovelibSearchResponse(
             finalUrl = response.url().toString(),
             html = response.body()
         )
+    }
+
+    private suspend fun executeSearchRequest(
+        url: String,
+        method: Connection.Method = Connection.Method.GET,
+        data: Map<String, String> = emptyMap()
+    ): Connection.Response = executeRequest(
+        url = url,
+        userAgent = CONTENT_USER_AGENT,
+        referrer = url,
+        acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
+        cacheControl = true,
+        cookieJar = searchCookies,
+        method = method,
+        data = data
+    )
+
+    private suspend fun loadCaptchaImage(challenge: LinovelibSearchChallenge, refresh: Boolean): ByteArray {
+        val url = if (refresh) {
+            "${challenge.imageUrl}&refresh=${System.currentTimeMillis()}"
+        } else {
+            challenge.imageUrl
+        }
+        return executeRequest(
+            url = url,
+            userAgent = CONTENT_USER_AGENT,
+            referrer = challenge.actionUrl,
+            acceptLanguage = CONTENT_ACCEPT_LANGUAGE,
+            cacheControl = true,
+            cookieJar = searchCookies
+        ).bodyAsBytes()
     }
 
     private suspend fun executeRequest(
@@ -225,7 +249,9 @@ class LinovelibWebDataSource(
         acceptLanguage: String,
         cookies: Map<String, String> = emptyMap(),
         cacheControl: Boolean = false,
-        includeSessionCookies: Boolean = true
+        cookieJar: MutableMap<String, String>? = sessionCookies,
+        method: Connection.Method = Connection.Method.GET,
+        data: Map<String, String> = emptyMap()
     ): Connection.Response {
         val startedAt = System.nanoTime()
         return try {
@@ -239,7 +265,9 @@ class LinovelibWebDataSource(
                         acceptLanguage = acceptLanguage,
                         cookies = cookies,
                         cacheControl = cacheControl,
-                        includeSessionCookies = includeSessionCookies,
+                        cookieJar = cookieJar,
+                        method = method,
+                        data = data,
                         attempt = attempt
                     )
                 } catch (throwable: Throwable) {
@@ -317,7 +345,9 @@ class LinovelibWebDataSource(
         acceptLanguage: String,
         cookies: Map<String, String>,
         cacheControl: Boolean,
-        includeSessionCookies: Boolean,
+        cookieJar: MutableMap<String, String>?,
+        method: Connection.Method,
+        data: Map<String, String>,
         attempt: Int
     ): Connection.Response = requestCoordinator.execute(
         cooldownAfter = { result ->
@@ -347,10 +377,8 @@ class LinovelibWebDataSource(
             }
         }
     ) {
-        val requestCookies = if (includeSessionCookies) {
-            sessionCookies.toMutableMap().apply { putAll(cookies) }
-        } else {
-            cookies
+        val requestCookies = synchronized(cookieLock) {
+            cookieJar?.toMutableMap()?.apply { putAll(cookies) } ?: cookies
         }
         val connection = Jsoup.connect(url)
             .userAgent(userAgent)
@@ -362,11 +390,13 @@ class LinovelibWebDataSource(
             .ignoreHttpErrors(true)
             .acceptLinovelibContentTypes()
             .timeout(12_000)
+            .method(method)
+        if (data.isNotEmpty()) connection.data(data)
         if (cacheControl) connection.header("Cache-Control", "no-cache")
         val response = withContext(Dispatchers.IO) { connection.execute() }
         currentCoroutineContext().ensureActive()
         response.also {
-            if (includeSessionCookies) sessionCookies.putAll(response.cookies())
+            if (cookieJar != null) synchronized(cookieLock) { cookieJar.putAll(response.cookies()) }
         }
     }
 
@@ -571,5 +601,6 @@ class LinovelibWebDataSource(
         const val CONTENT_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36 EdgA/135.0.0.0"
         const val CONTENT_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"
         const val MAX_CHAPTER_PAGES = 100
+        const val MAX_CAPTCHA_ATTEMPTS = 5
     }
 }
